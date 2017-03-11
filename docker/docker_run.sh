@@ -1,0 +1,1 @@
+docker run --name neuroarch_component -v $(dirname `pwd`):/neuroarch_component -v $(dirname $(dirname `pwd`))/neuroarch:/neuroarch -it ffbo/neuroarch sh /neuroarch_component/neuroarch_component/run_component_docker.sh
