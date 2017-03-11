@@ -1,1 +1,1 @@
-docker build -t ffbo/neuroarch .
+docker build -t ffbo/neuroarch_component:develop .
