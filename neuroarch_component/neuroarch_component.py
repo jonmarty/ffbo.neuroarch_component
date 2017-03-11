@@ -598,9 +598,9 @@ if __name__ == '__main__':
                         default=intermediate_cert_file,
                         help='Intermediate PEM certificate file (defaults to value from config.py).')
     parser.add_argument('--no-ssl', dest='ssl', action='store_false')
-    parser.add_argument('--no-auth', dest='auth', action='store_false')
+    parser.add_argument('--no-auth', dest='authentication', action='store_false')
     parser.set_defaults(ssl=ssl)
-    parser.set_defaults(auth=auth)
+    parser.set_defaults(auth=authentication)
     parser.set_defaults(debug=debug)
     
     args = parser.parse_args()
@@ -613,7 +613,7 @@ if __name__ == '__main__':
         txaio.start_logging(level='info')
 
    # any extra info we want to forward to our ClientSession (in self.config.extra)
-    extra = {'auth': args.auth}
+    extra = {'auth': args.authentication}
 
     if args.ssl:
         st_cert=open(args.ca_cert_file, 'rt').read()
