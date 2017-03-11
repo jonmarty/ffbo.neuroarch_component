@@ -600,7 +600,7 @@ if __name__ == '__main__':
     parser.add_argument('--no-ssl', dest='ssl', action='store_false')
     parser.add_argument('--no-auth', dest='authentication', action='store_false')
     parser.set_defaults(ssl=ssl)
-    parser.set_defaults(auth=authentication)
+    parser.set_defaults(authentication=authentication)
     parser.set_defaults(debug=debug)
     
     args = parser.parse_args()
