@@ -4,6 +4,7 @@ secret = 'xKzKbt62w3vx'
 ssl = False
 url = 'ws://localhost:8080/ws'
 realm = u'realm1'
+auth =True
 
 debug =False
 
