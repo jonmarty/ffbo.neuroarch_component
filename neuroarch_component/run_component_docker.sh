@@ -4,10 +4,10 @@ export PYTHONPATH=/neuroarch:/usr/local/lib/python2.7/site-packages:/usr/lib/pyt
 
 sleep 25
 BASEDIR=$(dirname "$0")
-#cd BASEDIR
+cd $BASEDIR
 
 if [ $# -eq 0 ]; then
-    python $BASEDIR/neuroarch_component.py --url ws://localhost:8080/ws
+    python $BASEDIR/neuroarch_component.py
 fi
 
 if [ $# -eq 1 ]; then
