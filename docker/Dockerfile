@@ -63,9 +63,9 @@ RUN apt-get update
 
 
 WORKDIR /opt/orientdb/databases
-RUN wget https://www.dropbox.com/s/ehci2cat1yu8n50/pre_alpha_db.tar.gz
-RUN tar zxvf pre_alpha_db.tar.gz
-RUN mv pre_alpha_db na_server
+RUN wget https://goo.gl/FGJbPp
+RUN tar zxvf ffbo_db.tar.gz
+RUN mv ffbo_db na_server
 
 # Package that supports binary serialization for pyorient
 RUN pip install pyorient_native
