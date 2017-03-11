@@ -1,8 +1,11 @@
-export PYTHONPATH=/neuroarch:$PYTHONPATH
+export PYTHONPATH=/neuroarch:/usr/local/lib/python2.7/site-packages:/usr/lib/python2.7/dist-packages/:$PYTHONPATH
+
 /opt/orientdb/bin/server.sh &
 
 sleep 25
 BASEDIR=$(dirname "$0")
+#cd BASEDIR
+
 if [ $# -eq 0 ]; then
     python $BASEDIR/neuroarch_component.py --url ws://localhost:8080/ws
 fi

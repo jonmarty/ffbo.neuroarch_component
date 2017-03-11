@@ -7,6 +7,7 @@ FROM python:2
 
 # File Author / Maintainer
 MAINTAINER Adam Tomkins <a.tomkins@sheffield.ac.uk>
+RUN apt-get update && apt-get install -y apt-transport-https
 
 ENV HOME /app
 ENV DEBIAN_FRONTEND noninteractive
@@ -41,13 +42,18 @@ RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-
 RUN apt-get install -y --force-yes --force-yes python python-dev python-distribute python-pip
 
 
+
 RUN apt-get update && apt-get -y --force-yes install python-numpy \
     python-pandas
+
 
 # Install dependancies
 RUN pip install --upgrade pip
 RUN pip install cython
 RUN pip install simplejson
+
+RUN pip install daff networkx path.py
+
 
 RUN  apt-get -yq update && \
      apt-get -yqq install ssh
@@ -57,7 +63,7 @@ RUN apt-get update
 
 
 WORKDIR /opt/orientdb/databases
-RUN wget <database link>
+RUN wget https://www.dropbox.com/s/ehci2cat1yu8n50/pre_alpha_db.tar.gz
 RUN tar zxvf pre_alpha_db.tar.gz
 RUN mv pre_alpha_db na_server
 
