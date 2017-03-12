@@ -19,6 +19,8 @@ RUN apt-get update
 # Install basic applications
 RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-essential 
 
+# Install Python and Basic Python Tools
+RUN apt-get install -y --force-yes --force-yes python python-dev python-distribute python-pip
 
 # Crossbar.io connection defaults
 ENV CBURL ws://crossbar:8080/ws
@@ -38,8 +40,6 @@ RUN mv /opt/orientdb-community-2.2.17 /opt/orientdb
 # Install basic applications
 RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-essential 
 
-# Install Python and Basic Python Tools
-RUN apt-get install -y --force-yes --force-yes python python-dev python-distribute python-pip
 
 
 
