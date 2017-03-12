@@ -22,10 +22,6 @@ RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-
 # Install Python and Basic Python Tools
 RUN apt-get install -y --force-yes --force-yes python python-dev python-distribute python-pip
 
-# Install numpy and pandas
-RUN apt-get update && apt-get -y --force-yes install python-numpy \
-    python-pandas
-
 # Crossbar.io connection defaults
 ENV CBURL ws://crossbar:8080/ws
 ENV CBREALM realm1
@@ -68,6 +64,8 @@ RUN mv ffbo_db na_server
 # Package that supports binary serialization for pyorient
 RUN pip install pyorient_native
 RUN pip install pyOpenSSL
+RUN pip install pandas
+RUN pip install service_identity
 
 # Install from forked pyorient till binary serialization support
 # is integrated in the next release
