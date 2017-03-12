@@ -61,8 +61,9 @@ RUN apt-get update
 
 
 WORKDIR /opt/orientdb/databases
-RUN wget -O na_server.tar.gz https://goo.gl/FGJbPp
-RUN tar zxvf na_server.tar.gz
+RUN wget -O ffbo_db.tar.gz https://goo.gl/FGJbPp
+RUN tar zxvf ffbo_db.tar.gz
+RUN mv ffbo_db na_server
 
 # Package that supports binary serialization for pyorient
 RUN pip install pyorient_native
