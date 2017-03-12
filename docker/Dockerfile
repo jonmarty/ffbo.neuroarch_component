@@ -45,9 +45,6 @@ RUN mv /opt/orientdb-community-2.2.17 /opt/orientdb
 RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-essential 
 
 
-
-
-
 # Install dependancies
 RUN pip install --upgrade pip
 RUN pip install cython
@@ -64,9 +61,8 @@ RUN apt-get update
 
 
 WORKDIR /opt/orientdb/databases
-RUN wget https://goo.gl/FGJbPp
-RUN tar zxvf ffbo_db.tar.gz
-RUN mv ffbo_db na_server
+RUN wget -O na_server.tar.gz https://goo.gl/FGJbPp
+RUN tar zxvf na_server.tar.gz
 
 # Package that supports binary serialization for pyorient
 RUN pip install pyorient_native
