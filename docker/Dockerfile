@@ -68,6 +68,7 @@ RUN mv ffbo_db na_server
 # Package that supports binary serialization for pyorient
 RUN pip install pyorient_native
 RUN pip install pyOpenSSL
+RUN pip install pandas
 
 # Install from forked pyorient till binary serialization support
 # is integrated in the next release
