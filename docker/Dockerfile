@@ -31,7 +31,7 @@ ENV CBURL ws://crossbar:8080/ws
 ENV CBREALM realm1
 
 # install Autobahn|Python
-RUN pip install -U pip && pip install autobahn[twisted] && pip install crossbar
+RUN pip install -U pip && pip install autobahn[twisted]
 
 # Install Java
 RUN apt-get install -y --force-yes default-jre
@@ -67,6 +67,7 @@ RUN mv ffbo_db na_server
 
 # Package that supports binary serialization for pyorient
 RUN pip install pyorient_native
+RUN pip install pyOpenSSL
 
 # Install from forked pyorient till binary serialization support
 # is integrated in the next release
