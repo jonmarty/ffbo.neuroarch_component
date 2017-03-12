@@ -75,3 +75,5 @@ RUN git clone https://github.com/nikulukani/pyorient.git
 WORKDIR /app/pyorient
 RUN git fetch && git checkout develop
 RUN python setup.py install
+
+ENV ORIENTDB_ROOT_PASSWORD root
