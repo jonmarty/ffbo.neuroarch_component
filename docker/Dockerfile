@@ -22,6 +22,10 @@ RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-
 # Install Python and Basic Python Tools
 RUN apt-get install -y --force-yes --force-yes python python-dev python-distribute python-pip
 
+# Install numpy and pandas
+RUN apt-get update && apt-get -y --force-yes install python-numpy \
+    python-pandas
+
 # Crossbar.io connection defaults
 ENV CBURL ws://crossbar:8080/ws
 ENV CBREALM realm1
@@ -42,9 +46,6 @@ RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-
 
 
 
-
-RUN apt-get update && apt-get -y --force-yes install python-numpy \
-    python-pandas
 
 
 # Install dependancies
