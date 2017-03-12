@@ -2,7 +2,7 @@ user = 'component'
 secret = 'xKzKbt62w3vx'
 
 ssl = False
-url = 'ws://localhost:8080/ws'
+url = 'ws://localhost:8081/ws'
 realm = u'realm1'
 authentication =True
 
