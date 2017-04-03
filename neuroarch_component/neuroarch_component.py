@@ -192,7 +192,8 @@ class neuroarch_server(object):
                         output['edges'] = dfs[1][task['edge_cols']].to_dict(orient='index')
                     else:
                         output['edges'] = dfs[1].to_dict(orient='index')
-            
+                elif task['format'] == 'qw':
+                    pass
                 # Default to nodes and edges df
                 else:
                     dfs = output.get_as()
@@ -526,6 +527,69 @@ class AppSession(ApplicationSession):
                                                  'data': res}})
         uri = 'ffbo.na.query.%s' % str(details.session)
         yield self.register(na_query, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency))
+
+        def create_tag(task,details=None):
+            if not "tag" in task:
+                return {"info":{"error":
+                                "Tag must be provided"}}
+                
+            if not isinstance(task, dict):
+                task = json.loads(task)
+            task = byteify(task)
+            
+            user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
+                      else details.caller
+            self.log.info("create_query() called with task: {task} ",task=task)
+
+            server = self.user_list.user(user_id)['server']
+            (output,succ) = server.receive_task({"command":{"retrieve":{"state":0}},"format":"qw"})
+            if not succ:
+                return {"info":{"error":
+                                "There was an error creating the tag"}}
+            if isinstance(output, QueryWrapper):
+                if 'metadata' in task:
+                    succ = output.tag_query_result_node(tag=task['tag'],
+                                                        permanent_flag=True,
+                                                        **task['metadata'])
+                else:
+                    succ = output.tag_query_result_node(tag=task['tag'],
+                                                        permanent_flag=True)
+                if succ==-1:
+                    return {"info":{"error":"The tag already exists. Please choose a different one"}}
+                else:
+                    return {"info":{"success":"tag created successfully"}}
+            
+            else:
+                return {"info":{"error":
+                                "No data found in current workspace to create tag"}}
+        uri = 'ffbo.na.create_tag.%s' % str(details.session)
+        yield self.register(create_tag, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency))
+
+        def retrieve_tag(task,details=None):
+            if not "tag" in task:
+                return {"info":{"error":
+                                "Tag must be provided"}}
+            
+            if not isinstance(task, dict):
+                task = json.loads(task)
+            task = byteify(task)
+            
+            user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
+                      else details.caller
+            self.log.info("retrieve_query() called with task: {task} ",task=task)
+
+            server = self.user_list.user(user_id)['server']
+            tagged_result = QueryWrapper.from_tag(graph=server.graph, tag=task['tag'])
+            if tagged_result and tagged_result['metadata'] and tagged_result['metadata']!='{}':
+                server.user.append(tagged_result['qw'])
+                return {'data':tagged_result['metadata'],
+                        'info':{'success':'Server Retrieved Tag Succesfully'}}
+            else:
+                return {"info":{"error":
+                                "No such tag exists in this database server"}}
+            
+        uri = 'ffbo.na.retrieve_tag.%s' % str(details.session)
+        yield self.register(retrieve_tag, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency))
         
         # Register a function to retrieve a single neuron information
         def retrieve_neuron(nid):
