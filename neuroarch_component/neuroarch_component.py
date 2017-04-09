@@ -70,7 +70,8 @@ class neuroarch_server(object):
     def __init__(self,database='/na_server',username='root',password='root', user=None):
         try:
             self.graph = Graph(Config.from_url(database, username, password, initial_drop=False,serialization_type=OrientSerialization.Binary))
-        except:
+        except Exception as e:
+            print e
             print "WARNING: Serialisation flag ignored"
             self.graph = Graph(Config.from_url(database, username, password, initial_drop=False))
         self.graph.include(Node.registry)
@@ -415,7 +416,7 @@ class AppSession(ApplicationSession):
 
     def onChallenge(self, challenge):
         if challenge.method == u"wampcra":
-            print("WAMP-CRA challenge received: {}".format(challenge))
+            #print("WAMP-CRA challenge received: {}".format(challenge))
             
             if u'salt' in challenge.extra:
                 # salted secret
@@ -498,6 +499,7 @@ class AppSession(ApplicationSession):
                         uri = task['user_msg']
                     except:
                         uri = 'ffbo.ui.receive_msg.%s' % user_id
+                        if not(type(uri)==six.text_type): uri = six.u(uri)
                     args = []
                     if 'color' in task: task['color'] = '#' + task['color']
                     for kw in arg_kws:
@@ -507,6 +509,7 @@ class AppSession(ApplicationSession):
                     yield self.call(uri, {'info':{'success':'Finished processing command'}})
                 else:
                     uri = task['data_callback_uri'] + '.%s' % user_id
+                    if not(type(uri)==six.text_type): uri = six.u(uri)
                     for c in res:
                         try:
                             succ = yield self.call(uri, c)
@@ -525,7 +528,7 @@ class AppSession(ApplicationSession):
                     self.na_query_on_end()
                     returnValue({'success': {'info':'Finished fetching all results from database',
                                                  'data': res}})
-        uri = 'ffbo.na.query.%s' % str(details.session)
+        uri = six.u('ffbo.na.query.%s' % str(details.session))
         yield self.register(na_query, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency))
 
         def create_tag(task,details=None):
@@ -539,7 +542,7 @@ class AppSession(ApplicationSession):
             
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
-            self.log.info("create_query() called with task: {task} ",task=task)
+            self.log.info("create_tag() called with task: {task} ",task=task)
 
             server = self.user_list.user(user_id)['server']
             (output,succ) = server.receive_task({"command":{"retrieve":{"state":0}},"format":"qw"})
@@ -562,7 +565,7 @@ class AppSession(ApplicationSession):
             else:
                 return {"info":{"error":
                                 "No data found in current workspace to create tag"}}
-        uri = 'ffbo.na.create_tag.%s' % str(details.session)
+        uri = six.u('ffbo.na.create_tag.%s' % str(details.session))
         yield self.register(create_tag, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency))
 
         def retrieve_tag(task,details=None):
@@ -576,7 +579,7 @@ class AppSession(ApplicationSession):
             
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
-            self.log.info("retrieve_query() called with task: {task} ",task=task)
+            self.log.info("retrieve_tag() called with task: {task} ",task=task)
 
             server = self.user_list.user(user_id)['server']
             tagged_result = QueryWrapper.from_tag(graph=server.graph, tag=task['tag'])
@@ -588,7 +591,7 @@ class AppSession(ApplicationSession):
                 return {"info":{"error":
                                 "No such tag exists in this database server"}}
             
-        uri = 'ffbo.na.retrieve_tag.%s' % str(details.session)
+        uri = six.u('ffbo.na.retrieve_tag.%s' % str(details.session))
         yield self.register(retrieve_tag, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency))
         
         # Register a function to retrieve a single neuron information
@@ -598,7 +601,7 @@ class AppSession(ApplicationSession):
             print "retrieve neuron result: " + str(res)
             return res
 
-        uri = 'ffbo.na.retrieve_neuron.%s' % str(details.session)
+        uri = six.u('ffbo.na.retrieve_neuron.%s' % str(details.session))
         yield self.register(retrieve_neuron, uri,RegisterOptions(concurrency=self._max_concurrency))
         print "registered %s" % uri
 
@@ -610,7 +613,7 @@ class AppSession(ApplicationSession):
             # CALL server registration
             try:
                 # registered the procedure we would like to call
-                res = yield self.call('ffbo.server.register',details.session,'na','na_server_test')
+                res = yield self.call(six.u('ffbo.server.register'),details.session,'na','na_server_test')
                 self.log.info("register new server called with result: {result}",
                                                     result=res)
 
@@ -618,7 +621,7 @@ class AppSession(ApplicationSession):
                 if e.error != 'wamp.error.no_such_procedure':
                     raise e
 
-        yield self.subscribe(register_component, 'ffbo.processor.connected')
+        yield self.subscribe(register_component, six.u('ffbo.processor.connected'))
         self.log.info("subscribed to topic 'ffbo.processor.connected'")
 
         # Register for memory management pings
@@ -628,11 +631,11 @@ class AppSession(ApplicationSession):
             self.log.info("Memory Manager removed users: {users}", users=clensed_users)
             for user in clensed_users:
                 try:
-                    yield self.publish("ffbo.ui.update.%s" % user, "Inactivity Detected, State Memory has been cleared")
+                    yield self.publish(six.u("ffbo.ui.update.%s" % str(user)), "Inactivity Detected, State Memory has been cleared")
                 except Exception as e:
                     self.log.warn("Failed to alert user {user} or State Memory removal, with error {e}",user=user,e=e)
 
-        yield self.subscribe(memory_management, 'ffbo.processor.memory_manager')
+        yield self.subscribe(memory_management, six.u('ffbo.processor.memory_manager'))
         self.log.info("subscribed to topic 'ffbo.processor.memory_management'")
 
 

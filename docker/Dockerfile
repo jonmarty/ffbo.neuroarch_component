@@ -57,7 +57,7 @@ RUN apt-get update
 
 
 WORKDIR /opt/orientdb/databases
-RUN wget -O ffbo_db.tar.gz https://goo.gl/R2DNpE
+RUN wget -O ffbo_db.tar.gz https://goo.gl/d7unnS
 RUN tar zxvf ffbo_db.tar.gz
 RUN mv ffbo_db na_server
 
