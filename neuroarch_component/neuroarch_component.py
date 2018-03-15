@@ -1,5 +1,5 @@
 import sys
-
+import re
 
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.logger import Logger
@@ -8,6 +8,8 @@ from autobahn.twisted.util import sleep
 from autobahn.twisted.wamp import ApplicationSession, ApplicationRunner
 from autobahn.wamp.exception import ApplicationError
 from autobahn.wamp.types import RegisterOptions
+
+from operator import itemgetter
 
 import os
 import argparse
@@ -27,6 +29,10 @@ import pyorient.ogm.graph
 
 from config import *
 
+import numpy as np
+
+import time
+
 # Required to handle dill's inability to serialize namedtuple class generator:
 setattr(pyorient.ogm.graph, 'orientdb_version',
         pyorient.ogm.graph.ServerVersion)
@@ -36,6 +42,8 @@ from neuroarch.models import *
 from neuroarch.query import QueryWrapper, QueryString
 
 from autobahn.wamp import auth
+
+from crawl import FlyCircuitDB
 
 # User access
 import state
@@ -70,15 +78,15 @@ class neuroarch_server(object):
     def __init__(self,database='/na_server',username='root',password='root', user=None):
         try:
             self.graph = Graph(Config.from_url(database, username, password, initial_drop=False,serialization_type=OrientSerialization.Binary))
-        except Exception as e:
-            print e
+        except:
             print "WARNING: Serialisation flag ignored"
             self.graph = Graph(Config.from_url(database, username, password, initial_drop=False))
         self.graph.include(Node.registry)
         self.graph.include(Relationship.registry)
         self.user = user
         self.query_processor = query_processor(self.graph)
-
+        self._busy = False
+        
     def retrieve_neuron(self,nid):
         # WIP: Currently retrieves all information for the get_as method, this will be refined when we know what data we want to store and pull out here
         try:
@@ -129,106 +137,117 @@ class neuroarch_server(object):
             update the user states, and query neuroarch
             This is the default access route
         """
-        if not type(task) == dict:
-            task = json.loads(task)
-        task = byteify(task)
+        while(self._busy):
+            time.sleep(1)
+        try:
+            self._busy = True
+            if not type(task) == dict:
+                task = json.loads(task)
+            task = byteify(task)
         
-        if 'format' not in task:
-            task['format'] = 'morphology'
+            if 'format' not in task:
+                task['format'] = 'morphology'
         
-        assert 'query' in task or 'command' in task
+            assert 'query' in task or 'command' in task
 
-        user = self.user
-        if 'command' in task:
-            output = user.process_command(task['command'])
-            if 'verb' in task and not task['verb'] == 'show':
-                try:
-                    output = self.process_verb(output, user, task['verb'])
-                except Exception as e:
-                    print e
-                if not task['verb'] == 'add':
-                    if task['format'] == 'morphology':
-                        output=output.get_data_rids(cls='MorphologyData')
-                    else:
-                        output = output._records_to_list(output.nodes)
-                    return (output, True)
+            user = self.user
+            if 'command' in task:
+                output = user.process_command(task['command'])
+                if 'verb' in task and not task['verb'] == 'show':
+                    try:
+                        output = self.process_verb(output, user, task['verb'])
+                    except Exception as e:
+                        print e
+                    if not task['verb'] == 'add':
+                        if task['format'] == 'morphology':
+                            output=output.get_data_rids(cls='MorphologyData')
+                        else:
+                            output = output._records_to_list(output.nodes)
+                        self._busy = False
+                        return (output, True)
                 
             
-            if isinstance(output, QueryWrapper):
-                #print  output._records_to_list(output.nodes)
-                if task['format'] == 'morphology':
-                    df = output.get_data(cls='MorphologyData')[0]
-                    try:
-                        output= df[['sample','identifier','x','y','z','r','parent','name']].to_dict(orient='index')
-                    except KeyError:
+                if isinstance(output, QueryWrapper):
+                    #print  output._records_to_list(output.nodes)
+                    if task['format'] == 'morphology':
+                        df = output.get_data(cls='MorphologyData')[0]
+                        try:
+                            #output= df[['sample','identifier','x','y','z','r','parent','name']].to_dict(orient='index')
+                            output= df.to_dict(orient='index')
+                        except KeyError:
+                            output = {}
+                    elif task['format'] == 'no_result':
                         output = {}
-                elif task['format'] == 'no_result':
-                    output = {}
-                elif task['format'] == 'get_data':
-                    if 'cls' in task:
-                        output = output.get_data(cls=task['cls'])[0].to_dict(orient='index')
-                    else:
-                        output = output.get_data()[0].to_dict(orient='index')
-                elif task['format'] == 'nx':
-                    nx_graph = output.get_as('nx')
-                    output = {'nodes': nx_graph.node, 'edges': nx_graph.edge}
-                elif task['format'] == 'nk':
-                    output = output.traverse_owned_by_get_toplevel()
-                    for x in output['LPU']:
-                        g = output['LPU'][x].get_as('nx')
-                        output['LPU'][x] = {'nodes': g.node, 'edges': g.edge}
-                    for x in output['Pattern']:
-                        g = output['Pattern'][x].get_as('nx')
-                        output['Pattern'][x] = {'nodes': g.node, 'edges': g.edge}
+                    elif task['format'] == 'get_data':
+                        if 'cls' in task:
+                            output = output.get_data(cls=task['cls'])[0].to_dict(orient='index')
+                        else:
+                            output = output.get_data()[0].to_dict(orient='index')
+                    elif task['format'] == 'nx':
+                        nx_graph = output.get_as('nx')
+                        output = {'nodes': nx_graph.node, 'edges': nx_graph.edge}
+                    elif task['format'] == 'nk':
+                        output = output.traverse_owned_by_get_toplevel()
+                        for x in output['LPU']:
+                            g = output['LPU'][x].get_as('nx')
+                            output['LPU'][x] = {'nodes': g.node, 'edges': g.edge}
+                        for x in output['Pattern']:
+                            g = output['Pattern'][x].get_as('nx')
+                            output['Pattern'][x] = {'nodes': g.node, 'edges': g.edge}
             
         
-                elif task['format'] == 'df':
-                    dfs = output.get_as()
-                    output = {}
-                    if 'node_cols' in task:
-                        output['nodes'] = dfs[0][task['node_cols']].to_dict(orient='index')
-                    else:
-                        output['nodes'] = dfs[0].to_dict(orient='index')
-                    if 'edge_cols' in task:
-                        output['edges'] = dfs[1][task['edge_cols']].to_dict(orient='index')
-                    else:
-                        output['edges'] = dfs[1].to_dict(orient='index')
-                elif task['format'] == 'qw':
-                    pass
+                    elif task['format'] == 'df':
+                        dfs = output.get_as()
+                        output = {}
+                        if 'node_cols' in task:
+                            output['nodes'] = dfs[0][task['node_cols']].to_dict(orient='index')
+                        else:
+                            output['nodes'] = dfs[0].to_dict(orient='index')
+                        if 'edge_cols' in task:
+                            output['edges'] = dfs[1][task['edge_cols']].to_dict(orient='index')
+                        else:
+                            output['edges'] = dfs[1].to_dict(orient='index')
+                    elif task['format'] == 'qw':
+                        pass
                 # Default to nodes and edges df
+                    else:
+                        dfs = output.get_as()
+                        output = {'nodes':dfs[0].to_dict(orient='index'),
+                                  'edges': dfs[1].to_dict(orient='index')}
                 else:
-                    dfs = output.get_as()
-                    output = {'nodes':dfs[0].to_dict(orient='index'),
-                              'edges': dfs[1].to_dict(orient='index')}
-            else:
-                output = str(output)
-            if threshold and isinstance(output, dict):
-                chunked_output = []
-                for c in chunks(output, threshold):
-                    chunked_output.append(c)
-                output = chunked_output
-            return (output, True)
-            
+                    output = str(output)
+                if threshold and isinstance(output, dict):
+                    chunked_output = []
+                    for c in chunks(output, threshold):
+                        chunked_output.append(c)
+                    output = chunked_output
+                self._busy = False
+                return (output, True)
         
-        elif 'query' in task:
-            succ = self.process_query(task)
-            if query_results:
-                task['command'] = {"retrieve":{"state":0}}
-                output = (None,)
-                try:
-                    output = self.receive_task(task, threshold)
-                    if output[0]==None:
-                        succ=False
-                except Exception as e:
-                    print e
-                    succ = False
-                    
-                return (output[0], succ) 
-            return succ
+            elif 'query' in task:
+                succ = self.process_query(task)
+                if query_results:
+                    task['command'] = {"retrieve":{"state":0}}
+                    output = (None,)
+                    try:
+                        self._busy = False
+                        output = self.receive_task(task, threshold)
+                        if output[0]==None:
+                            succ=False
+                    except Exception as e:
+                        print e
+                        succ = False
+                    self._busy = False
+                    return (output[0], succ)
+                self._busy = False
+                return succ
+        except Exception as e:
+            print e
+            self._busy = False
 
 class query_processor():
 
-    def __init__(self,graph):
+    def __init__(self, graph):
         self.class_list = {}
         self.graph = graph
         self.load_class_list()
@@ -407,7 +426,8 @@ class user_list():
 class AppSession(ApplicationSession):
 
     log = Logger()
-    
+    fdb = FlyCircuitDB()
+
     def onConnect(self):
         if self.config.extra['auth']:
             self.join(self.config.realm, [u"wampcra"], user)
@@ -416,7 +436,7 @@ class AppSession(ApplicationSession):
 
     def onChallenge(self, challenge):
         if challenge.method == u"wampcra":
-            #print("WAMP-CRA challenge received: {}".format(challenge))
+            print("WAMP-CRA challenge received: {}".format(challenge))
             
             if u'salt' in challenge.extra:
                 # salted secret
@@ -450,7 +470,7 @@ class AppSession(ApplicationSession):
 
         arg_kws = ['color']
         
-        reactor.suggestThreadPoolSize(self._max_concurrency)
+        reactor.suggestThreadPoolSize(self._max_concurrency*2)
         verb_translations = {'unhide': 'show',
                              'color': 'setcolor',
                              'keep' : 'remove',
@@ -469,7 +489,7 @@ class AppSession(ApplicationSession):
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
             threshold = None
-            if details.progress or 'data_callback_uri' in task: threshold=100 
+            if details.progress or 'data_callback_uri' in task: threshold=20 
             if 'verb' in task and task['verb'] not in ['add','show']: threshold=None
             self.log.info("na_query() called with task: {task} ,(current concurrency {current_concurrency} of max {max_concurrency})", current_concurrency=self._current_concurrency, max_concurrency=self._max_concurrency, task=task)
 
@@ -499,22 +519,24 @@ class AppSession(ApplicationSession):
                         uri = task['user_msg']
                     except:
                         uri = 'ffbo.ui.receive_msg.%s' % user_id
-                        if not(type(uri)==six.text_type): uri = six.u(uri)
                     args = []
                     if 'color' in task: task['color'] = '#' + task['color']
                     for kw in arg_kws:
                         if kw in task: args.append(task[kw])
                     if len(args)==1: args=args[0]
-                    yield self.call(uri, {'commands': {task['verb']: [res, args]}})
-                    yield self.call(uri, {'info':{'success':'Finished processing command'}})
+                    try:
+                        yield self.call(uri, {'commands': {task['verb']: [res, args]}})
+                        yield self.call(uri, {'info':{'success':'Finished processing command'}})
+                    except Exception as e:
+                        print e
                 else:
                     uri = task['data_callback_uri'] + '.%s' % user_id
-                    if not(type(uri)==six.text_type): uri = six.u(uri)
-                    for c in res:
-                        try:
-                            succ = yield self.call(uri, c)
-                        except ApplicationError as e:
-                            print e
+                    if res is not None:
+                        for c in res:
+                            try:
+                                succ = yield self.call(uri, c)
+                            except ApplicationError as e:
+                                print e
                 
                 self.na_query_on_end()
                 returnValue(succ)
@@ -528,8 +550,244 @@ class AppSession(ApplicationSession):
                     self.na_query_on_end()
                     returnValue({'success': {'info':'Finished fetching all results from database',
                                                  'data': res}})
-        uri = six.u('ffbo.na.query.%s' % str(details.session))
-        yield self.register(na_query, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency))
+        uri = 'ffbo.na.query.%s' % str(details.session)
+        yield self.register(na_query, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency/2))
+
+        @inlineCallbacks
+        def get_data_sub(q):
+            res = q.get_as('nx').node.values()[0]
+            ds = q.owned_by(cls='DataSource')
+            if ds.nodes:
+                res['Data Source'] = [x.name for x in ds.nodes]
+            else:
+                ds = q.get_data_qw().owned_by(cls='DataSource')
+                res['Data Source'] = [x.name for x in ds.nodes]
+                
+            subdata = q.get_data(cls=['NeurotransmitterData', 'GeneticData'],as_type='nx').node
+            ignore = ['name','uname','label','class']
+            key_map = {'transgenic_lines': 'Transgenic Lines'}
+            for x in subdata.values():
+                up_data = {(key_map[k] if k in key_map else k ):x[k] for k in x if k not in ignore}
+                res.update(up_data)
+
+            if 'FlyCircuit' in res['Data Source']:
+                res = {'summary_1': res}
+                try:
+                    flycircuit_data = yield self.call('ffbo.processor.fetch_flycircuit', res['summary_1']['name'])
+                    res['summary_1']['flycircuit_data'] = flycircuit_data
+                except:
+                    pass
+            else:
+                res = {'summary_2': res}
+
+            post_syn_q = q.gen_traversal_out(['SendsTo','InferredSynapse'],['SendsTo','Neuron'],min_depth=1)
+            pre_syn_q = q.gen_traversal_in(['SendsTo','InferredSynapse'],['SendsTo','Neuron'],min_depth=1)
+            post_syn = post_syn_q.get_as('nx')
+            pre_syn = pre_syn_q.get_as('nx')
+            if post_syn.nodes() or pre_syn.nodes():
+                # pyorient/OrientDB seems to have problem with large strings. Hardcoding for now.
+                '''
+                q1 = q.gen_traversal_out(['SendsTo', 'InferredSynapse'], min_depth=1)
+                inferred_ds = q1.gen_traversal_in(['Owns', 'DataSource'], min_depth=1).get_as('nx')
+                description = "".join( ["<h3>" + x['name'] + "</h3>" + "<p>" + x['description'] + "</p>" \
+                                        if 'description' in x else \
+                                        "<h3>" + x['name'] + "</h3>" + "<p>No description available</p>"\
+                                        for x in inferred_ds.node.values()] )
+                '''
+                description = """<h3>SPIN</h3><p>Inferred synaptic connections using axonic/dendritic polarity predicted by SPIN:Skeleton-based Polarity Identification for Neurons. Please refer to <br><a href="http://link.springer.com/article/10.1007/s12021-014-9225-6" target="_blank">SPIN: A Method of Skeleton-based Polarity Identification for Neurons. Neurinformatics 12:487-507. Yi-Hsuan Lee, Yen-Nan Lin, Chao-Chun Chuang and Chung-Chuan Lo (2014)</a> <br>for more details on the SPIN algorithm.</p>
+
+<p>The polarity determined by spin was used to predict synaptic connections based on when an axonic segment of a neuron is within a specified distance to a dendritic segment of another neuron after registering to a standard brain template.</p>
+"""
+                post_rids = str(post_syn.nodes()).replace("'","")
+                pre_rids = str(pre_syn.nodes()).replace("'","")
+                
+            
+                post_map_command = "select $path from (traverse out('HasData') from %s while $depth<=1) where @class='MorphologyData'" % post_rids
+                pre_map_command = "select $path from (traverse out('HasData') from %s while $depth<=1) where @class='MorphologyData'" % pre_rids
+                
+                post_map_l = [x.oRecordData['$path'] for x in q._graph.client.command(post_map_command)]
+                pre_map_l = [x.oRecordData['$path'] for x in q._graph.client.command(pre_map_command)]
+                
+                post_map = {}
+                pre_map = {}
+                
+                for p in post_map_l:
+                    m = re.findall('\#\d+\:\d+', p)  
+                    if len(m)==2:
+                        post_map[m[0]] = m[1]
+                        
+                for p in pre_map_l:
+                    m = re.findall('\#\d+\:\d+', p)  
+                    if len(m)==2:
+                        pre_map[m[0]] = m[1]
+                        
+                post_data = []
+                for (syn, neu) in post_syn.edges():
+                    if not post_syn.node[syn]['class']  == 'InferredSynapse': continue
+                    if 'N' not in post_syn.node[syn]:
+                        print post_syn.node[syn]
+                        info = {'N': 1, 'rid': post_map[neu]}
+                    else:
+                        info = {'N': post_syn.node[syn]['N'], 'rid': post_map[neu]}
+                    info.update(post_syn.node[neu])
+                    post_data.append(info)
+
+                post_data = sorted(post_data, key=lambda x: x['N'])
+                
+                pre_data = []
+                for (neu, syn) in pre_syn.edges():
+                    if not pre_syn.node[syn]['class']  == 'InferredSynapse': continue
+                    if 'N' not in pre_syn.node[syn]:
+                        print pre_syn.node[syn]
+                        info = {'N': 1, 'rid': pre_map[neu]}
+                    else:
+                        info = {'N': pre_syn.node[syn]['N'], 'rid': pre_map[neu]}
+                    info.update(pre_syn.node[neu])
+                    pre_data.append(info)
+                pre_data = sorted(pre_data, key=lambda x: x['N'])
+                    
+                # Summary PreSyn Information
+                pre_sum = {}
+                for x in pre_data:
+                    cls = x['name'].split('-')[0]
+                    if cls in pre_sum: pre_sum[cls] += x['N']
+                    else: pre_sum[cls] = x['N']
+                pre_N =  np.sum(pre_sum.values())
+                pre_sum = {k: 100*float(v)/pre_N for (k,v) in pre_sum.items()}
+
+                # Summary PostSyn Information
+                post_sum = {}
+                for x in post_data:
+                    cls = x['name'].split('-')[0]
+                    if cls in post_sum: post_sum[cls] += x['N']
+                    else: post_sum[cls] = x['N']
+                post_N =  np.sum(post_sum.values())
+                post_sum = {k: 100*float(v)/post_N for (k,v) in post_sum.items()}
+                
+                res.update({'synaptic_info_1':{'post': post_data,
+                                               'pre': pre_data,
+                                               'pre_sum': pre_sum,
+                                               'post_sum': post_sum,
+                                               'pre_N': pre_N,
+                                               'post_N': post_N,
+                                               'description': description}})
+            
+            post_syn_q = q.gen_traversal_out(['SendsTo','Synapse'],['SendsTo','Neuron'],min_depth=1)
+            pre_syn_q = q.gen_traversal_in(['SendsTo','Synapse'],['SendsTo','Neuron'],min_depth=1)
+            post_syn = post_syn_q.get_as('nx')
+            pre_syn = pre_syn_q.get_as('nx')
+
+            if not post_syn.nodes() and not pre_syn.nodes():  returnValue({'success':{'data':res}})
+            
+            post_rids = str(post_syn.nodes()).replace("'","")
+            pre_rids = str(pre_syn.nodes()).replace("'","")
+            
+            post_map_command = "select $path from (traverse out('HasData') from %s while $depth<=1) where @class='MorphologyData'" % post_rids
+            pre_map_command = "select $path from (traverse out('HasData') from %s while $depth<=1) where @class='MorphologyData'" % pre_rids
+
+            post_map_l = [x.oRecordData['$path'] for x in q._graph.client.command(post_map_command)]
+            pre_map_l = [x.oRecordData['$path'] for x in q._graph.client.command(pre_map_command)]
+
+            post_map = {}
+            pre_map = {}
+
+            for p in post_map_l:
+                m = re.findall('\#\d+\:\d+', p)  
+                if len(m)==2:
+                    post_map[m[0]] = m[1]
+
+            for p in pre_map_l:
+                m = re.findall('\#\d+\:\d+', p)  
+                if len(m)==2:
+                    pre_map[m[0]] = m[1]
+
+            #print time.time() - a
+            post_data = []
+            for (syn, neu) in post_syn.edges():
+                if not post_syn.node[syn]['class']  == 'Synapse': continue
+                if 'N' not in post_syn.node[syn]:
+                    print post_syn.node[syn]
+                    info = {'N': 1, 'rid': post_map[neu]}
+                else:
+                    info = {'N': post_syn.node[syn]['N'], 'rid': post_map[neu]}
+                info.update(post_syn.node[neu])
+                post_data.append(info)
+
+            post_data = sorted(post_data, key=lambda x: x['N'])
+            
+            pre_data = []
+            for (neu, syn) in pre_syn.edges():
+                if not pre_syn.node[syn]['class']  == 'Synapse': continue
+                if 'N' not in pre_syn.node[syn]:
+                    print pre_syn.node[syn]
+                    info = {'N': 1, 'rid': pre_map[neu]}
+                else:
+                    info = {'N': pre_syn.node[syn]['N'], 'rid': pre_map[neu]}
+                info.update(pre_syn.node[neu])
+                pre_data.append(info)
+            pre_data = sorted(pre_data, key=lambda x: x['N'])
+
+            # Summary PreSyn Information
+            pre_sum = {}
+            for x in pre_data:
+                if x['name'] in pre_sum: pre_sum[x['name']] += x['N']
+                else: pre_sum[x['name']] = x['N']
+            pre_N =  np.sum(pre_sum.values())
+            pre_sum = {k: 100*float(v)/pre_N for (k,v) in pre_sum.items()}
+
+            # Summary PostSyn Information
+            post_sum = {}
+            for x in post_data:
+                if x['name'] in post_sum: post_sum[x['name']] += x['N']
+                else: post_sum[x['name']] = x['N']
+            post_N =  np.sum(post_sum.values())
+            post_sum = {k: 100*float(v)/post_N for (k,v) in post_sum.items()}
+            
+            res.update({'synaptic_info_2':{'post': post_data,
+                                           'pre': pre_data,
+                                           'pre_sum': pre_sum,
+                                           'post_sum': post_sum,
+                                           'pre_N': pre_N,
+                                           'post_N': post_N}})
+            
+            returnValue({'success':{'data':res}})
+
+        def is_rid(rid):
+            if isinstance(rid, basestring) and re.search('^\#\d+\:\d+$', rid):
+                return True
+            else:
+                return False
+                
+        @inlineCallbacks
+        def na_get_data(task,details=None):
+            if not isinstance(task, dict):
+                task = json.loads(task)
+            task = byteify(task)
+            
+            user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
+                      else details.caller
+            threshold = None
+
+            self.log.info("na_get_data() called with task: {task}",task=task)
+            server = self.user_list.user(user_id)['server']
+            try:
+                if not is_rid(task['id']):
+                    returnValue({})
+                elem = server.graph.get_element(task['id'])
+                q = QueryWrapper.from_objs(server.graph,[elem])
+                if not elem.element_type == 'Neuron':
+                    q = q.gen_traversal_in(['HasData','Neuron'],min_depth=1)
+            
+                #res = yield threads.deferToThread(get_data_sub, q)
+                res = yield get_data_sub(q)
+            except Exception as e:
+                print e
+                self.log.failure("Error Retrieveing Data")
+                res = {}
+            returnValue(res)
+            
+        uri = 'ffbo.na.get_data.%s' % str(details.session)
+        yield self.register(na_get_data, uri, RegisterOptions(details_arg='details',concurrency=1))
 
         def create_tag(task,details=None):
             if not "tag" in task:
@@ -542,7 +800,7 @@ class AppSession(ApplicationSession):
             
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
-            self.log.info("create_tag() called with task: {task} ",task=task)
+            self.log.info("create_query() called with task: {task} ",task=task)
 
             server = self.user_list.user(user_id)['server']
             (output,succ) = server.receive_task({"command":{"retrieve":{"state":0}},"format":"qw"})
@@ -565,8 +823,8 @@ class AppSession(ApplicationSession):
             else:
                 return {"info":{"error":
                                 "No data found in current workspace to create tag"}}
-        uri = six.u('ffbo.na.create_tag.%s' % str(details.session))
-        yield self.register(create_tag, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency))
+        uri = 'ffbo.na.create_tag.%s' % str(details.session)
+        yield self.register(create_tag, uri, RegisterOptions(details_arg='details',concurrency=1))
 
         def retrieve_tag(task,details=None):
             if not "tag" in task:
@@ -579,7 +837,7 @@ class AppSession(ApplicationSession):
             
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
-            self.log.info("retrieve_tag() called with task: {task} ",task=task)
+            self.log.info("retrieve_query() called with task: {task} ",task=task)
 
             server = self.user_list.user(user_id)['server']
             tagged_result = QueryWrapper.from_tag(graph=server.graph, tag=task['tag'])
@@ -591,8 +849,8 @@ class AppSession(ApplicationSession):
                 return {"info":{"error":
                                 "No such tag exists in this database server"}}
             
-        uri = six.u('ffbo.na.retrieve_tag.%s' % str(details.session))
-        yield self.register(retrieve_tag, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency))
+        uri = 'ffbo.na.retrieve_tag.%s' % str(details.session)
+        yield self.register(retrieve_tag, uri, RegisterOptions(details_arg='details',concurrency=1))
         
         # Register a function to retrieve a single neuron information
         def retrieve_neuron(nid):
@@ -601,7 +859,7 @@ class AppSession(ApplicationSession):
             print "retrieve neuron result: " + str(res)
             return res
 
-        uri = six.u('ffbo.na.retrieve_neuron.%s' % str(details.session))
+        uri = 'ffbo.na.retrieve_neuron.%s' % str(details.session)
         yield self.register(retrieve_neuron, uri,RegisterOptions(concurrency=self._max_concurrency))
         print "registered %s" % uri
 
@@ -613,7 +871,7 @@ class AppSession(ApplicationSession):
             # CALL server registration
             try:
                 # registered the procedure we would like to call
-                res = yield self.call(six.u('ffbo.server.register'),details.session,'na','na_server_test')
+                res = yield self.call('ffbo.server.register',details.session,'na','na_server_with_vfb_links')
                 self.log.info("register new server called with result: {result}",
                                                     result=res)
 
@@ -621,7 +879,7 @@ class AppSession(ApplicationSession):
                 if e.error != 'wamp.error.no_such_procedure':
                     raise e
 
-        yield self.subscribe(register_component, six.u('ffbo.processor.connected'))
+        yield self.subscribe(register_component, 'ffbo.processor.connected')
         self.log.info("subscribed to topic 'ffbo.processor.connected'")
 
         # Register for memory management pings
@@ -631,11 +889,11 @@ class AppSession(ApplicationSession):
             self.log.info("Memory Manager removed users: {users}", users=clensed_users)
             for user in clensed_users:
                 try:
-                    yield self.publish(six.u("ffbo.ui.update.%s" % str(user)), "Inactivity Detected, State Memory has been cleared")
+                    yield self.publish("ffbo.ui.update.%s" % user, "Inactivity Detected, State Memory has been cleared")
                 except Exception as e:
                     self.log.warn("Failed to alert user {user} or State Memory removal, with error {e}",user=user,e=e)
 
-        yield self.subscribe(memory_management, six.u('ffbo.processor.memory_manager'))
+        yield self.subscribe(memory_management, 'ffbo.processor.memory_manager')
         self.log.info("subscribed to topic 'ffbo.processor.memory_management'")
 
 
@@ -665,9 +923,7 @@ if __name__ == '__main__':
                         default=intermediate_cert_file,
                         help='Intermediate PEM certificate file (defaults to value from config.py).')
     parser.add_argument('--no-ssl', dest='ssl', action='store_false')
-    parser.add_argument('--no-auth', dest='authentication', action='store_false')
     parser.set_defaults(ssl=ssl)
-    parser.set_defaults(authentication=authentication)
     parser.set_defaults(debug=debug)
     
     args = parser.parse_args()
@@ -680,7 +936,7 @@ if __name__ == '__main__':
         txaio.start_logging(level='info')
 
    # any extra info we want to forward to our ClientSession (in self.config.extra)
-    extra = {'auth': args.authentication}
+    extra = {'auth': True}
 
     if args.ssl:
         st_cert=open(args.ca_cert_file, 'rt').read()
@@ -700,5 +956,5 @@ if __name__ == '__main__':
         # now actually run a WAMP client using our session class ClientSession
         runner = ApplicationRunner(url=args.url, realm=args.realm, extra=extra)
 
-    runner.run(AppSession)
+    runner.run(AppSession, auto_reconnect=True)
 
