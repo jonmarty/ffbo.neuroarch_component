@@ -43,8 +43,6 @@ from neuroarch.query import QueryWrapper, QueryString
 
 from autobahn.wamp import auth
 
-from crawl import FlyCircuitDB
-
 # User access
 import state
 
@@ -426,8 +424,7 @@ class user_list():
 class AppSession(ApplicationSession):
 
     log = Logger()
-    fdb = FlyCircuitDB()
-
+    
     def onConnect(self):
         if self.config.extra['auth']:
             self.join(self.config.realm, [u"wampcra"], user)
