@@ -499,10 +499,10 @@ class AppSession(ApplicationSession):
                     pass
             if 'user_msg' in task:
                 if succ:
-                    yield self.call(task['user_msg'], {'info':{'success':
+                    yield self.call(six.u(task['user_msg']), {'info':{'success':
                                                                'Fetching results from NeuroArch'}})
                 else:
-                    yield self.call(task['user_msg'], {'info':{'error':
+                    yield self.call(six.u(task['user_msg']), {'info':{'error':
                                                                'Error executing query on NeuroArch'}})
             if('data_callback_uri' in task):
                 if('verb' in task and task['verb'] not in ['add','show']):
@@ -572,7 +572,7 @@ class AppSession(ApplicationSession):
             if 'FlyCircuit' in res['Data Source']:
                 res = {'summary_1': res}
                 try:
-                    flycircuit_data = yield self.call('ffbo.processor.fetch_flycircuit', res['summary_1']['name'])
+                    flycircuit_data = yield self.call(six.u('ffbo.processor.fetch_flycircuit'), res['summary_1']['name'])
                     res['summary_1']['flycircuit_data'] = flycircuit_data
                 except:
                     pass
@@ -870,7 +870,7 @@ class AppSession(ApplicationSession):
             # CALL server registration
             try:
                 # registered the procedure we would like to call
-                res = yield self.call('ffbo.server.register',details.session,'na','na_server_with_vfb_links')
+                res = yield self.call(six.u('ffbo.server.register'),details.session,'na','na_server_with_vfb_links')
                 self.log.info("register new server called with result: {result}",
                                                     result=res)
 
