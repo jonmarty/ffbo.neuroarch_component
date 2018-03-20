@@ -878,7 +878,7 @@ class AppSession(ApplicationSession):
                 if e.error != 'wamp.error.no_such_procedure':
                     raise e
 
-        yield self.subscribe(register_component, 'ffbo.processor.connected')
+        yield self.subscribe(register_component, six.u('ffbo.processor.connected'))
         self.log.info("subscribed to topic 'ffbo.processor.connected'")
 
         # Register for memory management pings
