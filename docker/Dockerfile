@@ -46,7 +46,8 @@ RUN pip install --upgrade pip
 RUN pip install cython
 RUN pip install simplejson
 
-RUN pip install daff networkx path.py
+RUN pip install daff path.py
+RUN pip install 'networkx<1.11'
 
 
 RUN  apt-get -yq update && \
@@ -57,9 +58,11 @@ RUN apt-get update
 
 
 WORKDIR /opt/orientdb/databases
-RUN wget -O ffbo_db.tar.gz https://goo.gl/d7unnS
-RUN tar zxvf ffbo_db.tar.gz
-RUN mv ffbo_db na_server
+#RUN wget -O ffbo_db.tar.gz https://goo.gl/d7unnS
+
+RUN wget 143.167.55.24:8909/ffbo_db_3_19_18.tar.gz
+
+RUN tar zxvf ffbo_db_3_19_18.tar.gz
 
 # Package that supports binary serialization for pyorient
 RUN pip install pyorient_native
