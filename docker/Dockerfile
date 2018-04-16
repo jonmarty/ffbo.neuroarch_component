@@ -57,9 +57,9 @@ RUN apt-get install -y --force-yes python-h5py
 RUN apt-get update
 
 
-WORKDIR /opt/orientdb/databases
-RUN wget -O ffbo_db.tar.gz https://goo.gl/d7unnS
-RUN tar zxvf ffbo_db.tar.gz
+#WORKDIR /opt/orientdb/databases
+#RUN wget -O ffbo_db.tar.gz https://goo.gl/d7unnS
+#RUN tar zxvf ffbo_db.tar.gz
 
 # Package that supports binary serialization for pyorient
 RUN pip install pyorient_native
