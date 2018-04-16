@@ -33,9 +33,9 @@ RUN pip install -U pip && pip install autobahn[twisted]
 RUN apt-get install -y --force-yes default-jre
 
 # Install OrientDB
-RUN wget https://orientdb.com/download.php?file=orientdb-community-2.2.17.tar.gz
-RUN tar -xf download.php?file=orientdb-community-2.2.17.tar.gz -C /opt
-RUN mv /opt/orientdb-community-2.2.17 /opt/orientdb
+RUN wget https://orientdb.com/download.php?file=orientdb-community-2.2.32.tar.gz
+RUN tar -xf download.php?file=orientdb-community-2.2.32.tar.gz -C /opt
+RUN mv /opt/orientdb-community-2.2.32 /opt/orientdb
 
 # Install basic applications
 RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-essential 
