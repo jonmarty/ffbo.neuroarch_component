@@ -1,6 +1,8 @@
 import sys
 import re
 
+from math import isnan
+
 from twisted.internet.defer import inlineCallbacks, returnValue
 from twisted.logger import Logger
 
@@ -32,6 +34,8 @@ from config import *
 import numpy as np
 
 import time
+
+from collections import Counter
 
 # Required to handle dill's inability to serialize namedtuple class generator:
 setattr(pyorient.ogm.graph, 'orientdb_version',
@@ -107,7 +111,7 @@ class neuroarch_server(object):
             self.query_processor.process(task['query'],self.user)
             return True
         except Exception as e:
-            #print e
+            print e
             return False
 
     @staticmethod
@@ -168,12 +172,14 @@ class neuroarch_server(object):
                 if isinstance(output, QueryWrapper):
                     #print  output._records_to_list(output.nodes)
                     if task['format'] == 'morphology':
-                        df = output.get_data(cls='MorphologyData')[0]
+                        #df = output.get_data(cls='MorphologyData')[0]
                         try:
                             #output= df[['sample','identifier','x','y','z','r','parent','name']].to_dict(orient='index')
-                            output= df.to_dict(orient='index')
+                            #output= df.to_dict(orient='index')
+                            output = output.get_data(cls='MorphologyData', as_type='nx').node
                         except KeyError:
                             output = {}
+                    
                     elif task['format'] == 'no_result':
                         output = {}
                     elif task['format'] == 'get_data':
@@ -236,6 +242,8 @@ class neuroarch_server(object):
                         print e
                         succ = False
                     self._busy = False
+                    if 'temp' in task and task['temp'] and len(user.state)>=2:
+                        user.process_command({'undo':{'states':1}})
                     return (output[0], succ)
                 self._busy = False
                 return succ
@@ -359,7 +367,6 @@ class query_processor():
                         query_result = getattr(na_object, method_name)(pass_through,**method_args)
                 else:
                     query_result = getattr(na_object, method_name)(**method_args)
-            
         elif 'op' in query['action']:
             method_call = query['action']['op']
             assert len(method_call.keys()) == 1
@@ -424,7 +431,6 @@ class user_list():
 class AppSession(ApplicationSession):
 
     log = Logger()
-    
     def onConnect(self):
         if self.config.extra['auth']:
             self.join(self.config.realm, [u"wampcra"], user)
@@ -482,11 +488,12 @@ class AppSession(ApplicationSession):
             if not isinstance(task, dict):
                 task = json.loads(task)
             task = byteify(task)
-            
+
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
             threshold = None
-            if details.progress or 'data_callback_uri' in task: threshold=20 
+            if details.progress or 'data_callback_uri' in task:
+                threshold = task['threshold'] if 'threshold' in task else 20 
             if 'verb' in task and task['verb'] not in ['add','show']: threshold=None
             self.log.info("na_query() called with task: {task} ,(current concurrency {current_concurrency} of max {max_concurrency})", current_concurrency=self._current_concurrency, max_concurrency=self._max_concurrency, task=task)
 
@@ -516,7 +523,7 @@ class AppSession(ApplicationSession):
                         uri = task['user_msg']
                     except:
                         uri = 'ffbo.ui.receive_msg.%s' % user_id
-                        if not(type(uri)==six.text_type): uri = six.u(uri)
+                    if not(type(uri)==six.text_type): uri = six.u(uri)
                     args = []
                     if 'color' in task: task['color'] = '#' + task['color']
                     for kw in arg_kws:
@@ -549,7 +556,7 @@ class AppSession(ApplicationSession):
                     self.na_query_on_end()
                     returnValue({'success': {'info':'Finished fetching all results from database',
                                                  'data': res}})
-        uri = six.u('ffbo.na.query.%s' % str(details.session))
+        uri = six.u( 'ffbo.na.query.%s' % str(details.session) )
         yield self.register(na_query, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency/2))
 
         @inlineCallbacks
@@ -572,12 +579,24 @@ class AppSession(ApplicationSession):
             if 'FlyCircuit' in res['Data Source']:
                 res = {'summary_1': res}
                 try:
-                    flycircuit_data = yield self.call(six.u('ffbo.processor.fetch_flycircuit'), res['summary_1']['name'])
+                    flycircuit_data = yield self.call(six.u( 'ffbo.processor.fetch_flycircuit' ), res['summary_1']['name'])
                     res['summary_1']['flycircuit_data'] = flycircuit_data
                 except:
                     pass
             else:
                 res = {'summary_2': res}
+
+            arborization_data = q.get_data(cls='ArborizationData', as_type='nx').node
+            ignore = ['name','uname','label','class']
+            up_data = {}
+            
+            for x in arborization_data.values():
+                key_map = {k:k for k in x}
+                if 'summary_2' in res:
+                    key_map['dendrites'] = 'Input Synapses'
+                    key_map['axons'] = 'Output Synapses'
+                up_data.update({key_map[k]:x[k] for k in x if k not in ignore})
+            if up_data: res['arborization_data'] = up_data
 
             post_syn_q = q.gen_traversal_out(['SendsTo','InferredSynapse'],['SendsTo','Neuron'],min_depth=1)
             pre_syn_q = q.gen_traversal_in(['SendsTo','InferredSynapse'],['SendsTo','Neuron'],min_depth=1)
@@ -623,11 +642,20 @@ class AppSession(ApplicationSession):
                 post_data = []
                 for (syn, neu) in post_syn.edges():
                     if not post_syn.node[syn]['class']  == 'InferredSynapse': continue
+                    info = {'has_morph': 0, 'has_syn_morph': 0}
                     if 'N' not in post_syn.node[syn]:
-                        #print post_syn.node[syn]
-                        info = {'N': 1, 'rid': post_map[neu]}
+                        print post_syn.node[syn]
+                        info['N'] = 1
                     else:
-                        info = {'N': post_syn.node[syn]['N'], 'rid': post_map[neu]}
+                        info['N'] =  post_syn.node[syn]['N']
+                    if neu in post_map:
+                        info['has_morph'] = 1
+                        info['rid'] = post_map[neu]
+                    if syn in post_map:
+                        info['has_syn_morph'] = 1
+                        info['syn_rid'] = post_map[syn]
+                        if 'uname' in post_syn.node[syn]:
+                            info['syn_uname'] = post_syn.node[syn]['uname']
                     info.update(post_syn.node[neu])
                     post_data.append(info)
 
@@ -636,11 +664,20 @@ class AppSession(ApplicationSession):
                 pre_data = []
                 for (neu, syn) in pre_syn.edges():
                     if not pre_syn.node[syn]['class']  == 'InferredSynapse': continue
+                    info = {'has_morph': 0, 'has_syn_morph': 0}
                     if 'N' not in pre_syn.node[syn]:
-                        #print pre_syn.node[syn]
-                        info = {'N': 1, 'rid': pre_map[neu]}
+                        print pre_syn.node[syn]
+                        info['N'] = 1
                     else:
-                        info = {'N': pre_syn.node[syn]['N'], 'rid': pre_map[neu]}
+                        info['N'] =  pre_syn.node[syn]['N']
+                    if neu in pre_map:
+                        info['has_morph'] = 1
+                        info['rid'] = pre_map[neu]
+                    if syn in pre_map:
+                        info['has_syn_morph'] = 1
+                        info['syn_rid'] = pre_map[syn]
+                        if 'uname' in pre_syn.node[syn]:
+                            info['syn_uname'] = pre_syn.node[syn]['uname']
                     info.update(pre_syn.node[neu])
                     pre_data.append(info)
                 pre_data = sorted(pre_data, key=lambda x: x['N'])
@@ -670,7 +707,7 @@ class AppSession(ApplicationSession):
                                                'pre_N': pre_N,
                                                'post_N': post_N,
                                                'description': description}})
-            
+
             post_syn_q = q.gen_traversal_out(['SendsTo','Synapse'],['SendsTo','Neuron'],min_depth=1)
             pre_syn_q = q.gen_traversal_in(['SendsTo','Synapse'],['SendsTo','Neuron'],min_depth=1)
             post_syn = post_syn_q.get_as('nx')
@@ -704,11 +741,20 @@ class AppSession(ApplicationSession):
             post_data = []
             for (syn, neu) in post_syn.edges():
                 if not post_syn.node[syn]['class']  == 'Synapse': continue
+                info = {'has_morph': 0, 'has_syn_morph': 0}
                 if 'N' not in post_syn.node[syn]:
-                    #print post_syn.node[syn]
-                    info = {'N': 1, 'rid': post_map[neu]}
+                    print post_syn.node[syn]
+                    info['N'] = 1
                 else:
-                    info = {'N': post_syn.node[syn]['N'], 'rid': post_map[neu]}
+                    info['N'] =  post_syn.node[syn]['N']
+                if neu in post_map:
+                    info['has_morph'] = 1
+                    info['rid'] = post_map[neu]
+                if syn in post_map:
+                    info['has_syn_morph'] = 1
+                    info['syn_rid'] = post_map[syn]
+                    if 'uname' in post_syn.node[syn]:
+                        info['syn_uname'] = post_syn.node[syn]['uname']
                 info.update(post_syn.node[neu])
                 post_data.append(info)
 
@@ -717,11 +763,20 @@ class AppSession(ApplicationSession):
             pre_data = []
             for (neu, syn) in pre_syn.edges():
                 if not pre_syn.node[syn]['class']  == 'Synapse': continue
+                info = {'has_morph': 0, 'has_syn_morph': 0}
                 if 'N' not in pre_syn.node[syn]:
-                    #print pre_syn.node[syn]
-                    info = {'N': 1, 'rid': pre_map[neu]}
+                    print pre_syn.node[syn]
+                    info['N'] = 1
                 else:
-                    info = {'N': pre_syn.node[syn]['N'], 'rid': pre_map[neu]}
+                    info['N'] =  pre_syn.node[syn]['N']
+                if neu in pre_map:
+                    info['has_morph'] = 1
+                    info['rid'] = pre_map[neu]
+                if syn in pre_map:
+                    info['has_syn_morph'] = 1
+                    info['syn_rid'] = pre_map[syn]
+                    if 'uname' in pre_syn.node[syn]:
+                        info['syn_uname'] = pre_syn.node[syn]['uname']
                 info.update(pre_syn.node[neu])
                 pre_data.append(info)
             pre_data = sorted(pre_data, key=lambda x: x['N'])
@@ -785,8 +840,61 @@ class AppSession(ApplicationSession):
                 res = {}
             returnValue(res)
             
-        uri = six.u('ffbo.na.get_data.%s' % str(details.session))
+        uri = six.u( 'ffbo.na.get_data.%s' % str(details.session) )
         yield self.register(na_get_data, uri, RegisterOptions(details_arg='details',concurrency=1))
+
+        def get_syn_data_sub(q):
+            res = q.get_as('nx').node.values()[0]
+            ds = q.owned_by(cls='DataSource')
+            if ds.nodes:
+                res['Data Source'] = [x.name for x in ds.nodes]
+            else:
+                ds = q.get_data_qw().owned_by(cls='DataSource')
+                res['Data Source'] = [x.name for x in ds.nodes]
+
+            subdata = q.get_data(cls=['NeurotransmitterData', 'GeneticData', 'MorphologyData'],as_type='nx').node
+            ignore = ['name','uname','label','class', 'x', 'y', 'z', 'r', 'parent', 'identifier', 'sample', 'morph_type']
+            key_map = {'transgenic_lines': 'Transgenic Lines'}
+            for x in subdata.values():
+                up_data = {(key_map[k] if k in key_map else k ):x[k] for k in x if k not in ignore}
+                res.update(up_data)
+            if 'region' in res:
+                res['Synapse Locations'] = Counter(res['region'])
+                del res['region']
+
+            res = {'success': {'data':{'synapse_details_1': res}}}
+            return res
+
+        @inlineCallbacks
+        def na_get_syn_data(task,details=None):
+            if not isinstance(task, dict):
+                task = json.loads(task)
+            task = byteify(task)
+            
+            user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
+                      else details.caller
+            threshold = None
+
+            self.log.info("na_get_syn_data() called with task: {task}",task=task)
+            server = self.user_list.user(user_id)['server']
+            try:
+                if not is_rid(task['id']):
+                    returnValue({})
+                elem = server.graph.get_element(task['id'])
+                q = QueryWrapper.from_objs(server.graph,[elem])
+                if not elem.element_type == 'Synapse':
+                    q = q.gen_traversal_in(['HasData','Synapse'],min_depth=1)
+                if not len(q._nodes):
+                    returnValue({})
+                res = yield threads.deferToThread(get_syn_data_sub, q)
+            except Exception as e:
+                print e
+                self.log.failure("Error Retrieveing Data")
+                res = {}
+            returnValue(res)
+            
+        uri = 'ffbo.na.get_syn_data.%s' % str(details.session)
+        yield self.register(na_get_syn_data, uri, RegisterOptions(details_arg='details',concurrency=1))
 
         def create_tag(task,details=None):
             if not "tag" in task:
@@ -822,7 +930,7 @@ class AppSession(ApplicationSession):
             else:
                 return {"info":{"error":
                                 "No data found in current workspace to create tag"}}
-        uri = six.u('ffbo.na.create_tag.%s' % str(details.session))
+        uri = six.u( 'ffbo.na.create_tag.%s' % str(details.session) )
         yield self.register(create_tag, uri, RegisterOptions(details_arg='details',concurrency=1))
 
         def retrieve_tag(task,details=None):
@@ -848,7 +956,7 @@ class AppSession(ApplicationSession):
                 return {"info":{"error":
                                 "No such tag exists in this database server"}}
             
-        uri = six.u('ffbo.na.retrieve_tag.%s' % str(details.session))
+        uri = six.u( 'ffbo.na.retrieve_tag.%s' % str(details.session) )
         yield self.register(retrieve_tag, uri, RegisterOptions(details_arg='details',concurrency=1))
         
         # Register a function to retrieve a single neuron information
@@ -858,9 +966,9 @@ class AppSession(ApplicationSession):
             print "retrieve neuron result: " + str(res)
             return res
 
-        uri = six.u('ffbo.na.retrieve_neuron.%s' % str(details.session))
+        uri = six.u( 'ffbo.na.retrieve_neuron.%s' % str(details.session) )
         yield self.register(retrieve_neuron, uri,RegisterOptions(concurrency=self._max_concurrency))
-        #print "registered %s" % uri
+        print "registered %s" % uri
 
 
         # Listen for ffbo.processor.connected
@@ -870,7 +978,7 @@ class AppSession(ApplicationSession):
             # CALL server registration
             try:
                 # registered the procedure we would like to call
-                res = yield self.call(six.u('ffbo.server.register'),details.session,'na','na_server_with_vfb_links')
+                res = yield self.call(six.u( 'ffbo.server.register' ),details.session,'na','na_server_with_vfb_links')
                 self.log.info("register new server called with result: {result}",
                                                     result=res)
 
@@ -878,7 +986,7 @@ class AppSession(ApplicationSession):
                 if e.error != 'wamp.error.no_such_procedure':
                     raise e
 
-        yield self.subscribe(register_component, six.u('ffbo.processor.connected'))
+        yield self.subscribe(register_component, six.u( 'ffbo.processor.connected' ))
         self.log.info("subscribed to topic 'ffbo.processor.connected'")
 
         # Register for memory management pings
@@ -888,11 +996,11 @@ class AppSession(ApplicationSession):
             self.log.info("Memory Manager removed users: {users}", users=clensed_users)
             for user in clensed_users:
                 try:
-                    yield self.publish(six.u("ffbo.ui.update.%s" % user), "Inactivity Detected, State Memory has been cleared")
+                    yield self.publish(six.u( "ffbo.ui.update.%s" % user ), "Inactivity Detected, State Memory has been cleared")
                 except Exception as e:
                     self.log.warn("Failed to alert user {user} or State Memory removal, with error {e}",user=user,e=e)
 
-        yield self.subscribe(memory_management, six.u('ffbo.processor.memory_manager'))
+        yield self.subscribe(memory_management, six.u( 'ffbo.processor.memory_manager' ))
         self.log.info("subscribed to topic 'ffbo.processor.memory_management'")
 
 
