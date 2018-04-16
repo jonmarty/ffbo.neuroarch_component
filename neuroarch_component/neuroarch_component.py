@@ -893,7 +893,7 @@ class AppSession(ApplicationSession):
                 res = {}
             returnValue(res)
             
-        uri = 'ffbo.na.get_syn_data.%s' % str(details.session)
+        uri = six.u( 'ffbo.na.get_syn_data.%s' % str(details.session) )
         yield self.register(na_get_syn_data, uri, RegisterOptions(details_arg='details',concurrency=1))
 
         def create_tag(task,details=None):
