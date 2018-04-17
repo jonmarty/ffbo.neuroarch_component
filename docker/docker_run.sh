@@ -1,11 +1,11 @@
 DOCKER_NAME="ffbo.neuroarch_component"
 DATABASE_LOCATION="$(dirname `pwd`)/../ffbo_db"
-if [ "$#" -eq 1 ]
+if [ "$#" -ge 1 ]
 then
     DATABASE_LOCATION=$1
 fi
 
-if [ "$#" -eq 2 ]
+if [ "$#" -ge 2 ]
 then
     DOCKER_NAME=$2
 fi
