@@ -68,14 +68,14 @@ def byteify(input):
                 return input.encode('utf-8')
     else:
         return input
-    
+
 def chunks(data, SIZE=1000):
     it = iter(data)
     for i in xrange(0, len(data), SIZE):
         yield {k:data[k] for k in islice(it, SIZE)}
 
 class neuroarch_server(object):
-    """ Methods to process neuroarch json tasks """ 
+    """ Methods to process neuroarch json tasks """
 
     def __init__(self,database='/na_server',username='root',password='root', user=None):
         try:
@@ -88,7 +88,7 @@ class neuroarch_server(object):
         self.user = user
         self.query_processor = query_processor(self.graph)
         self._busy = False
-        
+
     def retrieve_neuron(self,nid):
         # WIP: Currently retrieves all information for the get_as method, this will be refined when we know what data we want to store and pull out here
         try:
@@ -100,7 +100,7 @@ class neuroarch_server(object):
                 return output.get_as()[0].to_json()
         except Exception as e:
             raise e
-        
+
 
 
     def process_query(self,task):
@@ -132,7 +132,7 @@ class neuroarch_server(object):
             output = output & user.state[-2]
             user.process_command(cmd)
         return output
-    
+
     def receive_task(self,task, threshold=None, query_results=True):
         """ process a task of form
             {'query':...} or {'command': ...}
@@ -146,10 +146,10 @@ class neuroarch_server(object):
             if not type(task) == dict:
                 task = json.loads(task)
             task = byteify(task)
-        
+
             if 'format' not in task:
                 task['format'] = 'morphology'
-        
+
             assert 'query' in task or 'command' in task
 
             user = self.user
@@ -162,13 +162,13 @@ class neuroarch_server(object):
                         print e
                     if not task['verb'] == 'add':
                         if task['format'] == 'morphology':
-                            output=output.get_data_rids(cls='MorphologyData')
+                            output = output.get_data_rids(cls='MorphologyData')
                         else:
                             output = output._records_to_list(output.nodes)
                         self._busy = False
                         return (output, True)
-                
-            
+
+
                 if isinstance(output, QueryWrapper):
                     #print  output._records_to_list(output.nodes)
                     if task['format'] == 'morphology':
@@ -179,7 +179,7 @@ class neuroarch_server(object):
                             output = output.get_data(cls='MorphologyData', as_type='nx').node
                         except KeyError:
                             output = {}
-                    
+
                     elif task['format'] == 'no_result':
                         output = {}
                     elif task['format'] == 'get_data':
@@ -198,8 +198,8 @@ class neuroarch_server(object):
                         for x in output['Pattern']:
                             g = output['Pattern'][x].get_as('nx')
                             output['Pattern'][x] = {'nodes': g.node, 'edges': g.edge}
-            
-        
+
+
                     elif task['format'] == 'df':
                         dfs = output.get_as()
                         output = {}
@@ -227,7 +227,7 @@ class neuroarch_server(object):
                     output = chunked_output
                 self._busy = False
                 return (output, True)
-        
+
             elif 'query' in task:
                 succ = self.process_query(task)
                 if query_results:
@@ -270,13 +270,13 @@ class query_processor():
                 e = sys.exc_info()[0]
                 print e
         #print self.class_list
-    
+
     def process(self,query_list,user):
         """ take a query of the form
-           [{'object':...:,'action...'}] 
+           [{'object':...:,'action...'}]
         """
         assert type(query_list) is list
-        
+
         task_memory = []
         for q in query_list:
             # Assume each query must act on the previous result, is this valid?
@@ -291,7 +291,7 @@ class query_processor():
 
     def process_single(self,query,user,task_memory):
         """  accetpt a single query object or form
-           [{'object':...:,'action...'}] 
+           [{'object':...:,'action...'}]
         """
         assert 'object' in query and 'action' in query
         assert 'class' in query['object'] or 'state' in query['object'] or 'memory' in query['object']
@@ -310,7 +310,7 @@ class query_processor():
 
             assert type(state_num) in [int,long]
             na_object = user.retrieve(index = state_num)
-        
+
         elif 'memory' in query['object']:
             assert task_memory is not []
             memory_index = query['object']['memory']
@@ -328,10 +328,10 @@ class query_processor():
                 method_call = query['action']['method']
                 assert len(method_call.keys()) == 1
                 method_name = method_call.keys()[0]
-                
+
                 method_args = method_call[method_name]
                 columns = ""
-                attrs = [] 
+                attrs = []
                 for k, v in method_args.iteritems():
                     if not(isinstance(v, list)):
                         if isinstance(v, (basestring, numbers.Number)):
@@ -358,7 +358,7 @@ class query_processor():
                 assert method_name in dir(type(na_object))
                 # Retrieve arguments
                 method_args = byteify(method_call[method_name])
-            
+
                 if 'pass_through' in method_args:
                     pass_through = method_args.pop('pass_through')
                     if isinstance(pass_through,list) and pass_through and isinstance(pass_through[0],list):
@@ -393,9 +393,9 @@ class query_processor():
             #query_result = getattr(na_object, method_name)(method_args)
             ## INVERSE THIS na and method argis (WHY?)
             query_result = getattr(na_object, method_name)(past_object)
-            
+
         # convert result to a query wrapper to save
-        if type(query_result) is not QueryWrapper: 
+        if type(query_result) is not QueryWrapper:
             output = QueryWrapper.from_objs(self.graph,query_result.all())
         else:
             output = query_result
@@ -424,9 +424,9 @@ class user_list():
                 cleansed.append(user)
         for user in cleansed:
             del self.list[user]
-            
+
         return cleansed
-            
+
 
 class AppSession(ApplicationSession):
 
@@ -440,7 +440,7 @@ class AppSession(ApplicationSession):
     def onChallenge(self, challenge):
         if challenge.method == u"wampcra":
             #print("WAMP-CRA challenge received: {}".format(challenge))
-            
+
             if u'salt' in challenge.extra:
                 # salted secret
                 key = auth.derive_key(secret,
@@ -450,10 +450,10 @@ class AppSession(ApplicationSession):
             else:
                 # plain, unsalted secret
                 key = secret
-                
+
             # compute signature for challenge, using the key
             signature = auth.compute_wcs(key, challenge.extra['challenge'])
-            
+
             # return the signature to the router for verification
             return signature
 
@@ -463,7 +463,7 @@ class AppSession(ApplicationSession):
     def na_query_on_end(self):
         self._current_concurrency -= 1
         self.log.info('na_query() ended ({invocations} invocations, current concurrency {current_concurrency} of max {max_concurrency})', invocations=self._invocations_served, current_concurrency=self._current_concurrency, max_concurrency=self._max_concurrency)
-        
+
     @inlineCallbacks
     def onJoin(self, details):
         self._max_concurrency = 10
@@ -472,14 +472,14 @@ class AppSession(ApplicationSession):
         self.user_list = user_list()
 
         arg_kws = ['color']
-        
+
         reactor.suggestThreadPoolSize(self._max_concurrency*2)
         verb_translations = {'unhide': 'show',
                              'color': 'setcolor',
                              'keep' : 'remove',
                              'blink' : 'animate',
                              'unblink' : 'unanimate'}
-        
+
         @inlineCallbacks
         def na_query(task,details=None):
             self._invocations_served += 1
@@ -492,70 +492,58 @@ class AppSession(ApplicationSession):
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
             threshold = None
-            if details.progress or 'data_callback_uri' in task:
-                threshold = task['threshold'] if 'threshold' in task else 20 
+            if details.progress:
+                threshold = task['threshold'] if 'threshold' in task else 20
             if 'verb' in task and task['verb'] not in ['add','show']: threshold=None
             self.log.info("na_query() called with task: {task} ,(current concurrency {current_concurrency} of max {max_concurrency})", current_concurrency=self._current_concurrency, max_concurrency=self._max_concurrency, task=task)
 
             server = self.user_list.user(user_id)['server']
             (res, succ) = yield threads.deferToThread(server.receive_task, task, threshold)
-            if (not details.caller_authrole == 'processor'):
-                try:
-                    del task['user_msg']
-                except:
-                    pass
-            if 'user_msg' in task:
+            uri = 'ffbo.ui.receive_msg.%s' % user_id
+            if not(type(uri)==six.text_type): uri = six.u(uri)
+            cmd_uri = 'ffbo.ui.receive_cmd.%s' % user_id
+            if not(type(cmd_uri)==six.text_type): cmd_uri = six.u(cmd_uri)
+
+            try:
                 if succ:
-                    yield self.call(six.u(task['user_msg']), {'info':{'success':
-                                                               'Fetching results from NeuroArch'}})
+                    yield self.call(uri, {'info':{'success':
+                                                  'Fetching results from NeuroArch'}})
                 else:
-                    yield self.call(six.u(task['user_msg']), {'info':{'error':
-                                                               'Error executing query on NeuroArch'}})
-            if('data_callback_uri' in task):
-                if('verb' in task and task['verb'] not in ['add','show']):
-                    try:
-                        task['verb'] = verb_translations[task['verb']]
-                    except Exception as e:
-                        print e
-                        pass
-                    
-                    try:
-                        uri = task['user_msg']
-                    except:
-                        uri = 'ffbo.ui.receive_msg.%s' % user_id
-                    if not(type(uri)==six.text_type): uri = six.u(uri)
-                    args = []
-                    if 'color' in task: task['color'] = '#' + task['color']
-                    for kw in arg_kws:
-                        if kw in task: args.append(task[kw])
-                    if len(args)==1: args=args[0]
-                    try:
-                        yield self.call(uri, {'commands': {task['verb']: [res, args]}})
-                        yield self.call(uri, {'info':{'success':'Finished processing command'}})
-                    except Exception as e:
-                        print e
-                else:
-                    uri = task['data_callback_uri'] + '.%s' % user_id
-                    if not(type(uri)==six.text_type): uri = six.u(uri)
-                    if res is not None:
-                        for c in res:
-                            try:
-                                succ = yield self.call(uri, c)
-                            except ApplicationError as e:
-                                print e
-                
-                self.na_query_on_end()
-                returnValue(succ)
+                    yield self.call(uri, {'info':{'error':
+                                                  'Error executing query on NeuroArch'}})
+            except Exception as e:
+                print e
+            
+            try:
+                if(not 'verb' in task or task['verb'] == 'show'):
+                    yield self.call(cmd_uri,
+                                    {'commands': {'reset':''}})
+            except Exception as e:
+                print e
+
+            if('verb' in task and task['verb'] not in ['add','show']):
+                try:
+                    task['verb'] = verb_translations[task['verb']]
+                except Exception as e:
+                    pass
+
+                args = []
+                if 'color' in task: task['color'] = '#' + task['color']
+                for kw in arg_kws:
+                    if kw in task: args.append(task[kw])
+                if len(args)==1: args=args[0]
+                yield self.call(cmd_uri, {'commands': {task['verb']: [res, args]}})
+                returnValue({'info':{'success':'Finished processing command'}})
             else:
                 if details.progress:
                     for c in res:
                         details.progress(c)
                     self.na_query_on_end()
-                    returnValue({'success': {'info':'Finished fetching all results from database'}})
+                    returnValue({'info': {'success':'Finished fetching all results from database'}})
                 else:
                     self.na_query_on_end()
-                    returnValue({'success': {'info':'Finished fetching all results from database',
-                                                 'data': res}})
+                    returnValue({'info': {'success':'Finished fetching all results from database'},
+                                 'data': res})
         uri = six.u( 'ffbo.na.query.%s' % str(details.session) )
         yield self.register(na_query, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency/2))
 
@@ -568,7 +556,7 @@ class AppSession(ApplicationSession):
             else:
                 ds = q.get_data_qw().owned_by(cls='DataSource')
                 res['Data Source'] = [x.name for x in ds.nodes]
-                
+
             subdata = q.get_data(cls=['NeurotransmitterData', 'GeneticData'],as_type='nx').node
             ignore = ['name','uname','label','class']
             key_map = {'transgenic_lines': 'Transgenic Lines'}
@@ -589,7 +577,7 @@ class AppSession(ApplicationSession):
             arborization_data = q.get_data(cls='ArborizationData', as_type='nx').node
             ignore = ['name','uname','label','class']
             up_data = {}
-            
+
             for x in arborization_data.values():
                 key_map = {k:k for k in x}
                 if 'summary_2' in res:
@@ -618,27 +606,27 @@ class AppSession(ApplicationSession):
 """
                 post_rids = str(post_syn.nodes()).replace("'","")
                 pre_rids = str(pre_syn.nodes()).replace("'","")
-                
-            
+
+
                 post_map_command = "select $path from (traverse out('HasData') from %s while $depth<=1) where @class='MorphologyData'" % post_rids
                 pre_map_command = "select $path from (traverse out('HasData') from %s while $depth<=1) where @class='MorphologyData'" % pre_rids
-                
+
                 post_map_l = [x.oRecordData['$path'] for x in q._graph.client.command(post_map_command)]
                 pre_map_l = [x.oRecordData['$path'] for x in q._graph.client.command(pre_map_command)]
-                
+
                 post_map = {}
                 pre_map = {}
-                
+
                 for p in post_map_l:
-                    m = re.findall('\#\d+\:\d+', p)  
+                    m = re.findall('\#\d+\:\d+', p)
                     if len(m)==2:
                         post_map[m[0]] = m[1]
-                        
+
                 for p in pre_map_l:
-                    m = re.findall('\#\d+\:\d+', p)  
+                    m = re.findall('\#\d+\:\d+', p)
                     if len(m)==2:
                         pre_map[m[0]] = m[1]
-                        
+
                 post_data = []
                 for (syn, neu) in post_syn.edges():
                     if not post_syn.node[syn]['class']  == 'InferredSynapse': continue
@@ -660,7 +648,7 @@ class AppSession(ApplicationSession):
                     post_data.append(info)
 
                 post_data = sorted(post_data, key=lambda x: x['N'])
-                
+
                 pre_data = []
                 for (neu, syn) in pre_syn.edges():
                     if not pre_syn.node[syn]['class']  == 'InferredSynapse': continue
@@ -681,7 +669,7 @@ class AppSession(ApplicationSession):
                     info.update(pre_syn.node[neu])
                     pre_data.append(info)
                 pre_data = sorted(pre_data, key=lambda x: x['N'])
-                    
+
                 # Summary PreSyn Information
                 pre_sum = {}
                 for x in pre_data:
@@ -699,7 +687,7 @@ class AppSession(ApplicationSession):
                     else: post_sum[cls] = x['N']
                 post_N =  np.sum(post_sum.values())
                 post_sum = {k: 100*float(v)/post_N for (k,v) in post_sum.items()}
-                
+
                 res.update({'synaptic_info_1':{'post': post_data,
                                                'pre': pre_data,
                                                'pre_sum': pre_sum,
@@ -713,11 +701,11 @@ class AppSession(ApplicationSession):
             post_syn = post_syn_q.get_as('nx')
             pre_syn = pre_syn_q.get_as('nx')
 
-            if not post_syn.nodes() and not pre_syn.nodes():  returnValue({'success':{'data':res}})
-            
+            if not post_syn.nodes() and not pre_syn.nodes():  returnValue({'data':res})
+
             post_rids = str(post_syn.nodes()).replace("'","")
             pre_rids = str(pre_syn.nodes()).replace("'","")
-            
+
             post_map_command = "select $path from (traverse out('HasData') from %s while $depth<=1) where @class='MorphologyData'" % post_rids
             pre_map_command = "select $path from (traverse out('HasData') from %s while $depth<=1) where @class='MorphologyData'" % pre_rids
 
@@ -728,12 +716,12 @@ class AppSession(ApplicationSession):
             pre_map = {}
 
             for p in post_map_l:
-                m = re.findall('\#\d+\:\d+', p)  
+                m = re.findall('\#\d+\:\d+', p)
                 if len(m)==2:
                     post_map[m[0]] = m[1]
 
             for p in pre_map_l:
-                m = re.findall('\#\d+\:\d+', p)  
+                m = re.findall('\#\d+\:\d+', p)
                 if len(m)==2:
                     pre_map[m[0]] = m[1]
 
@@ -759,7 +747,7 @@ class AppSession(ApplicationSession):
                 post_data.append(info)
 
             post_data = sorted(post_data, key=lambda x: x['N'])
-            
+
             pre_data = []
             for (neu, syn) in pre_syn.edges():
                 if not pre_syn.node[syn]['class']  == 'Synapse': continue
@@ -796,28 +784,28 @@ class AppSession(ApplicationSession):
                 else: post_sum[x['name']] = x['N']
             post_N =  np.sum(post_sum.values())
             post_sum = {k: 100*float(v)/post_N for (k,v) in post_sum.items()}
-            
+
             res.update({'synaptic_info_2':{'post': post_data,
                                            'pre': pre_data,
                                            'pre_sum': pre_sum,
                                            'post_sum': post_sum,
                                            'pre_N': pre_N,
                                            'post_N': post_N}})
-            
-            returnValue({'success':{'data':res}})
+
+            returnValue({'data':res})
 
         def is_rid(rid):
             if isinstance(rid, basestring) and re.search('^\#\d+\:\d+$', rid):
                 return True
             else:
                 return False
-                
+
         @inlineCallbacks
         def na_get_data(task,details=None):
             if not isinstance(task, dict):
                 task = json.loads(task)
             task = byteify(task)
-            
+
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
             threshold = None
@@ -831,7 +819,7 @@ class AppSession(ApplicationSession):
                 q = QueryWrapper.from_objs(server.graph,[elem])
                 if not elem.element_type == 'Neuron':
                     q = q.gen_traversal_in(['HasData','Neuron'],min_depth=1)
-            
+
                 #res = yield threads.deferToThread(get_data_sub, q)
                 res = yield get_data_sub(q)
             except Exception as e:
@@ -839,7 +827,7 @@ class AppSession(ApplicationSession):
                 self.log.failure("Error Retrieveing Data")
                 res = {}
             returnValue(res)
-            
+
         uri = six.u( 'ffbo.na.get_data.%s' % str(details.session) )
         yield self.register(na_get_data, uri, RegisterOptions(details_arg='details',concurrency=1))
 
@@ -862,7 +850,7 @@ class AppSession(ApplicationSession):
                 res['Synapse Locations'] = Counter(res['region'])
                 del res['region']
 
-            res = {'success': {'data':{'synapse_details_1': res}}}
+            res = {'data':{'synapse_details_1': res}}
             return res
 
         @inlineCallbacks
@@ -870,7 +858,7 @@ class AppSession(ApplicationSession):
             if not isinstance(task, dict):
                 task = json.loads(task)
             task = byteify(task)
-            
+
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
             threshold = None
@@ -892,7 +880,7 @@ class AppSession(ApplicationSession):
                 self.log.failure("Error Retrieveing Data")
                 res = {}
             returnValue(res)
-            
+
         uri = six.u( 'ffbo.na.get_syn_data.%s' % str(details.session) )
         yield self.register(na_get_syn_data, uri, RegisterOptions(details_arg='details',concurrency=1))
 
@@ -900,11 +888,11 @@ class AppSession(ApplicationSession):
             if not "tag" in task:
                 return {"info":{"error":
                                 "Tag must be provided"}}
-                
+
             if not isinstance(task, dict):
                 task = json.loads(task)
             task = byteify(task)
-            
+
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
             self.log.info("create_tag() called with task: {task} ",task=task)
@@ -926,7 +914,7 @@ class AppSession(ApplicationSession):
                     return {"info":{"error":"The tag already exists. Please choose a different one"}}
                 else:
                     return {"info":{"success":"tag created successfully"}}
-            
+
             else:
                 return {"info":{"error":
                                 "No data found in current workspace to create tag"}}
@@ -937,11 +925,11 @@ class AppSession(ApplicationSession):
             if not "tag" in task:
                 return {"info":{"error":
                                 "Tag must be provided"}}
-            
+
             if not isinstance(task, dict):
                 task = json.loads(task)
             task = byteify(task)
-            
+
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
             self.log.info("retrieve_tag() called with task: {task} ",task=task)
@@ -955,10 +943,10 @@ class AppSession(ApplicationSession):
             else:
                 return {"info":{"error":
                                 "No such tag exists in this database server"}}
-            
+
         uri = six.u( 'ffbo.na.retrieve_tag.%s' % str(details.session) )
         yield self.register(retrieve_tag, uri, RegisterOptions(details_arg='details',concurrency=1))
-        
+
         # Register a function to retrieve a single neuron information
         def retrieve_neuron(nid):
             self.log.info("retrieve_neuron() called with neuron id: {nid} ", nid = nid)
@@ -1013,9 +1001,9 @@ if __name__ == '__main__':
     from twisted.internet._sslverify import OpenSSLCertificateAuthorities
     from twisted.internet.ssl import CertificateOptions
     import OpenSSL.crypto
-    
-                                           
-    
+
+
+
     # parse command line parameters
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--debug', action='store_true', help='Enable debug output.')
@@ -1032,10 +1020,10 @@ if __name__ == '__main__':
     parser.add_argument('--no-ssl', dest='ssl', action='store_false')
     parser.set_defaults(ssl=ssl)
     parser.set_defaults(debug=debug)
-    
+
     args = parser.parse_args()
 
-    
+
     # start logging
     if args.debug:
         txaio.start_logging(level='debug')
@@ -1049,10 +1037,10 @@ if __name__ == '__main__':
         st_cert=open(args.ca_cert_file, 'rt').read()
         c=OpenSSL.crypto
         ca_cert=c.load_certificate(c.FILETYPE_PEM, st_cert)
-        
+
         st_cert=open(args.intermediate_cert_file, 'rt').read()
         intermediate_cert=c.load_certificate(c.FILETYPE_PEM, st_cert)
-        
+
         certs = OpenSSLCertificateAuthorities([ca_cert, intermediate_cert])
         ssl_con = CertificateOptions(trustRoot=certs)
 
@@ -1064,4 +1052,3 @@ if __name__ == '__main__':
         runner = ApplicationRunner(url=args.url, realm=args.realm, extra=extra)
 
     runner.run(AppSession, auto_reconnect=True)
-
