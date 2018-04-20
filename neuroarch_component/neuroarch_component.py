@@ -491,14 +491,17 @@ class AppSession(ApplicationSession):
 
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
+
             threshold = None
             if details.progress:
                 threshold = task['threshold'] if 'threshold' in task else 20
             if 'verb' in task and task['verb'] not in ['add','show']: threshold=None
+
             self.log.info("na_query() called with task: {task} ,(current concurrency {current_concurrency} of max {max_concurrency})", current_concurrency=self._current_concurrency, max_concurrency=self._max_concurrency, task=task)
 
             server = self.user_list.user(user_id)['server']
             (res, succ) = yield threads.deferToThread(server.receive_task, task, threshold)
+
             uri = 'ffbo.ui.receive_msg.%s' % user_id
             if not(type(uri)==six.text_type): uri = six.u(uri)
             cmd_uri = 'ffbo.ui.receive_cmd.%s' % user_id
@@ -513,7 +516,7 @@ class AppSession(ApplicationSession):
                                                   'Error executing query on NeuroArch'}})
             except Exception as e:
                 print e
-            
+
             try:
                 if(not 'verb' in task or task['verb'] == 'show'):
                     yield self.call(cmd_uri,
@@ -552,27 +555,28 @@ class AppSession(ApplicationSession):
             res = q.get_as('nx').node.values()[0]
             ds = q.owned_by(cls='DataSource')
             if ds.nodes:
-                res['Data Source'] = [x.name for x in ds.nodes]
+                res['data_source'] = [x.name for x in ds.nodes]
             else:
                 ds = q.get_data_qw().owned_by(cls='DataSource')
-                res['Data Source'] = [x.name for x in ds.nodes]
+                if ds.nodes:
+                    res['data_source'] = [x.name for x in ds.nodes]
+                else:
+                    res['data_source'] = ['Unknown']
 
             subdata = q.get_data(cls=['NeurotransmitterData', 'GeneticData'],as_type='nx').node
             ignore = ['name','uname','label','class']
-            key_map = {'transgenic_lines': 'Transgenic Lines'}
+            key_map = {'Transmitters': 'transmitters'}#'transgenic_lines': 'Transgenic Lines'}
             for x in subdata.values():
                 up_data = {(key_map[k] if k in key_map else k ):x[k] for k in x if k not in ignore}
                 res.update(up_data)
 
-            if 'FlyCircuit' in res['Data Source']:
-                res = {'summary_1': res}
+            res = {'summary': res}
+            if 'FlyCircuit' in res['summary']['data_source']:
                 try:
-                    flycircuit_data = yield self.call(six.u( 'ffbo.processor.fetch_flycircuit' ), res['summary_1']['name'])
-                    res['summary_1']['flycircuit_data'] = flycircuit_data
+                    flycircuit_data = yield self.call(six.u( 'ffbo.processor.fetch_flycircuit' ), res['summary']['name'])
+                    res['summary']['flycircuit_data'] = flycircuit_data
                 except:
                     pass
-            else:
-                res = {'summary_2': res}
 
             arborization_data = q.get_data(cls='ArborizationData', as_type='nx').node
             ignore = ['name','uname','label','class']
@@ -580,30 +584,20 @@ class AppSession(ApplicationSession):
 
             for x in arborization_data.values():
                 key_map = {k:k for k in x}
-                if 'summary_2' in res:
-                    key_map['dendrites'] = 'Input Synapses'
-                    key_map['axons'] = 'Output Synapses'
+                if 'FlyCircuit' in res['summary']['data_source']:
+                    key_map['dendrites'] = 'inferred_dendritic_segments'
+                    key_map['axons'] = 'inferred_axonal_segments'
+                else:
+                    key_map['dendrites'] = 'input_synapses'
+                    key_map['axons'] = 'output_synapses'
                 up_data.update({key_map[k]:x[k] for k in x if k not in ignore})
-            if up_data: res['arborization_data'] = up_data
+            if up_data: res['summary']['arborization_data'] = up_data
 
-            post_syn_q = q.gen_traversal_out(['SendsTo','InferredSynapse'],['SendsTo','Neuron'],min_depth=1)
-            pre_syn_q = q.gen_traversal_in(['SendsTo','InferredSynapse'],['SendsTo','Neuron'],min_depth=1)
+            post_syn_q = q.gen_traversal_out(['SendsTo',['InferredSynapse', 'Synapse']],['SendsTo','Neuron'],min_depth=1)
+            pre_syn_q = q.gen_traversal_in(['SendsTo',['InferredSynapse', 'Synapse']],['SendsTo','Neuron'],min_depth=1)
             post_syn = post_syn_q.get_as('nx')
             pre_syn = pre_syn_q.get_as('nx')
             if post_syn.nodes() or pre_syn.nodes():
-                # pyorient/OrientDB seems to have problem with large strings. Hardcoding for now.
-                '''
-                q1 = q.gen_traversal_out(['SendsTo', 'InferredSynapse'], min_depth=1)
-                inferred_ds = q1.gen_traversal_in(['Owns', 'DataSource'], min_depth=1).get_as('nx')
-                description = "".join( ["<h3>" + x['name'] + "</h3>" + "<p>" + x['description'] + "</p>" \
-                                        if 'description' in x else \
-                                        "<h3>" + x['name'] + "</h3>" + "<p>No description available</p>"\
-                                        for x in inferred_ds.node.values()] )
-                '''
-                description = """<h3>SPIN</h3><p>Inferred synaptic connections using axonic/dendritic polarity predicted by SPIN:Skeleton-based Polarity Identification for Neurons. Please refer to <br><a href="http://link.springer.com/article/10.1007/s12021-014-9225-6" target="_blank">SPIN: A Method of Skeleton-based Polarity Identification for Neurons. Neurinformatics 12:487-507. Yi-Hsuan Lee, Yen-Nan Lin, Chao-Chun Chuang and Chung-Chuan Lo (2014)</a> <br>for more details on the SPIN algorithm.</p>
-
-<p>The polarity determined by spin was used to predict synaptic connections based on when an axonic segment of a neuron is within a specified distance to a dendritic segment of another neuron after registering to a standard brain template.</p>
-"""
                 post_rids = str(post_syn.nodes()).replace("'","")
                 pre_rids = str(pre_syn.nodes()).replace("'","")
 
@@ -629,13 +623,15 @@ class AppSession(ApplicationSession):
 
                 post_data = []
                 for (syn, neu) in post_syn.edges():
-                    if not post_syn.node[syn]['class']  == 'InferredSynapse': continue
+                    if not (post_syn.node[syn]['class']  == 'InferredSynapse' or
+                            post_syn.node[syn]['class']  == 'Synapse'):
+                        continue
                     info = {'has_morph': 0, 'has_syn_morph': 0}
                     if 'N' not in post_syn.node[syn]:
                         print post_syn.node[syn]
-                        info['N'] = 1
+                        info['number'] = 1
                     else:
-                        info['N'] =  post_syn.node[syn]['N']
+                        info['number'] =  post_syn.node[syn]['N']
                     if neu in post_map:
                         info['has_morph'] = 1
                         info['rid'] = post_map[neu]
@@ -644,20 +640,23 @@ class AppSession(ApplicationSession):
                         info['syn_rid'] = post_map[syn]
                         if 'uname' in post_syn.node[syn]:
                             info['syn_uname'] = post_syn.node[syn]['uname']
+                    info['inferred'] = (post_syn.node[syn]['class'] == 'InferredSynapse')
                     info.update(post_syn.node[neu])
                     post_data.append(info)
 
-                post_data = sorted(post_data, key=lambda x: x['N'])
+                post_data = sorted(post_data, key=lambda x: x['number'])
 
                 pre_data = []
                 for (neu, syn) in pre_syn.edges():
-                    if not pre_syn.node[syn]['class']  == 'InferredSynapse': continue
+                    if not (pre_syn.node[syn]['class']  == 'InferredSynapse' or
+                            pre_syn.node[syn]['class']  == 'Synapse'):
+                        continue
                     info = {'has_morph': 0, 'has_syn_morph': 0}
                     if 'N' not in pre_syn.node[syn]:
                         print pre_syn.node[syn]
-                        info['N'] = 1
+                        info['number'] = 1
                     else:
-                        info['N'] =  pre_syn.node[syn]['N']
+                        info['number'] =  pre_syn.node[syn]['N']
                     if neu in pre_map:
                         info['has_morph'] = 1
                         info['rid'] = pre_map[neu]
@@ -666,16 +665,21 @@ class AppSession(ApplicationSession):
                         info['syn_rid'] = pre_map[syn]
                         if 'uname' in pre_syn.node[syn]:
                             info['syn_uname'] = pre_syn.node[syn]['uname']
+                    info['inferred'] = (pre_syn.node[syn]['class'] == 'InferredSynapse')
                     info.update(pre_syn.node[neu])
                     pre_data.append(info)
-                pre_data = sorted(pre_data, key=lambda x: x['N'])
+                pre_data = sorted(pre_data, key=lambda x: x['number'])
 
                 # Summary PreSyn Information
                 pre_sum = {}
                 for x in pre_data:
                     cls = x['name'].split('-')[0]
-                    if cls in pre_sum: pre_sum[cls] += x['N']
-                    else: pre_sum[cls] = x['N']
+                    try:
+                        if cls=='5': cls = x['name'].split('-')[:2].join('-')
+                    except Exception as e:
+                        pass
+                    if cls in pre_sum: pre_sum[cls] += x['number']
+                    else: pre_sum[cls] = x['number']
                 pre_N =  np.sum(pre_sum.values())
                 pre_sum = {k: 100*float(v)/pre_N for (k,v) in pre_sum.items()}
 
@@ -683,114 +687,28 @@ class AppSession(ApplicationSession):
                 post_sum = {}
                 for x in post_data:
                     cls = x['name'].split('-')[0]
-                    if cls in post_sum: post_sum[cls] += x['N']
-                    else: post_sum[cls] = x['N']
+                    if cls in post_sum: post_sum[cls] += x['number']
+                    else: post_sum[cls] = x['number']
                 post_N =  np.sum(post_sum.values())
                 post_sum = {k: 100*float(v)/post_N for (k,v) in post_sum.items()}
 
-                res.update({'synaptic_info_1':{'post': post_data,
-                                               'pre': pre_data,
-                                               'pre_sum': pre_sum,
-                                               'post_sum': post_sum,
-                                               'pre_N': pre_N,
-                                               'post_N': post_N,
-                                               'description': description}})
-
-            post_syn_q = q.gen_traversal_out(['SendsTo','Synapse'],['SendsTo','Neuron'],min_depth=1)
-            pre_syn_q = q.gen_traversal_in(['SendsTo','Synapse'],['SendsTo','Neuron'],min_depth=1)
-            post_syn = post_syn_q.get_as('nx')
-            pre_syn = pre_syn_q.get_as('nx')
-
-            if not post_syn.nodes() and not pre_syn.nodes():  returnValue({'data':res})
-
-            post_rids = str(post_syn.nodes()).replace("'","")
-            pre_rids = str(pre_syn.nodes()).replace("'","")
-
-            post_map_command = "select $path from (traverse out('HasData') from %s while $depth<=1) where @class='MorphologyData'" % post_rids
-            pre_map_command = "select $path from (traverse out('HasData') from %s while $depth<=1) where @class='MorphologyData'" % pre_rids
-
-            post_map_l = [x.oRecordData['$path'] for x in q._graph.client.command(post_map_command)]
-            pre_map_l = [x.oRecordData['$path'] for x in q._graph.client.command(pre_map_command)]
-
-            post_map = {}
-            pre_map = {}
-
-            for p in post_map_l:
-                m = re.findall('\#\d+\:\d+', p)
-                if len(m)==2:
-                    post_map[m[0]] = m[1]
-
-            for p in pre_map_l:
-                m = re.findall('\#\d+\:\d+', p)
-                if len(m)==2:
-                    pre_map[m[0]] = m[1]
-
-            #print time.time() - a
-            post_data = []
-            for (syn, neu) in post_syn.edges():
-                if not post_syn.node[syn]['class']  == 'Synapse': continue
-                info = {'has_morph': 0, 'has_syn_morph': 0}
-                if 'N' not in post_syn.node[syn]:
-                    print post_syn.node[syn]
-                    info['N'] = 1
-                else:
-                    info['N'] =  post_syn.node[syn]['N']
-                if neu in post_map:
-                    info['has_morph'] = 1
-                    info['rid'] = post_map[neu]
-                if syn in post_map:
-                    info['has_syn_morph'] = 1
-                    info['syn_rid'] = post_map[syn]
-                    if 'uname' in post_syn.node[syn]:
-                        info['syn_uname'] = post_syn.node[syn]['uname']
-                info.update(post_syn.node[neu])
-                post_data.append(info)
-
-            post_data = sorted(post_data, key=lambda x: x['N'])
-
-            pre_data = []
-            for (neu, syn) in pre_syn.edges():
-                if not pre_syn.node[syn]['class']  == 'Synapse': continue
-                info = {'has_morph': 0, 'has_syn_morph': 0}
-                if 'N' not in pre_syn.node[syn]:
-                    print pre_syn.node[syn]
-                    info['N'] = 1
-                else:
-                    info['N'] =  pre_syn.node[syn]['N']
-                if neu in pre_map:
-                    info['has_morph'] = 1
-                    info['rid'] = pre_map[neu]
-                if syn in pre_map:
-                    info['has_syn_morph'] = 1
-                    info['syn_rid'] = pre_map[syn]
-                    if 'uname' in pre_syn.node[syn]:
-                        info['syn_uname'] = pre_syn.node[syn]['uname']
-                info.update(pre_syn.node[neu])
-                pre_data.append(info)
-            pre_data = sorted(pre_data, key=lambda x: x['N'])
-
-            # Summary PreSyn Information
-            pre_sum = {}
-            for x in pre_data:
-                if x['name'] in pre_sum: pre_sum[x['name']] += x['N']
-                else: pre_sum[x['name']] = x['N']
-            pre_N =  np.sum(pre_sum.values())
-            pre_sum = {k: 100*float(v)/pre_N for (k,v) in pre_sum.items()}
-
-            # Summary PostSyn Information
-            post_sum = {}
-            for x in post_data:
-                if x['name'] in post_sum: post_sum[x['name']] += x['N']
-                else: post_sum[x['name']] = x['N']
-            post_N =  np.sum(post_sum.values())
-            post_sum = {k: 100*float(v)/post_N for (k,v) in post_sum.items()}
-
-            res.update({'synaptic_info_2':{'post': post_data,
-                                           'pre': pre_data,
-                                           'pre_sum': pre_sum,
-                                           'post_sum': post_sum,
-                                           'pre_N': pre_N,
-                                           'post_N': post_N}})
+                res.update({
+                    'connectivity':{
+                        'post': {
+                            'details': post_data,
+                            'summary': {
+                                'number': post_N,
+                                'profile': post_sum
+                            }
+                        }, 'pre': {
+                            'details': pre_data,
+                            'summary': {
+                                'number': pre_N,
+                                'profile': pre_sum
+                            }
+                        }
+                    }
+                })
 
             returnValue({'data':res})
 
@@ -799,6 +717,33 @@ class AppSession(ApplicationSession):
                 return True
             else:
                 return False
+
+        def get_syn_data_sub(q):
+            res = q.get_as('nx').node.values()[0]
+            ds = q.owned_by(cls='DataSource')
+            if ds.nodes:
+                res['data_source'] = [x.name for x in ds.nodes]
+            else:
+                ds = q.get_data_qw().owned_by(cls='DataSource')
+                res['data_source'] = [x.name for x in ds.nodes]
+
+            subdata = q.get_data(cls=['NeurotransmitterData', 'GeneticData', 'MorphologyData'],as_type='nx').node
+            ignore = ['name','uname','label','class', 'x', 'y', 'z', 'r', 'parent', 'identifier', 'sample', 'morph_type']
+            key_map = {'Transmitters': 'transmitters', 'N': 'number'}#'transgenic_lines': 'Transgenic Lines'}
+            for x in subdata.values():
+                up_data = {(key_map[k] if k in key_map else k ):x[k] for k in x if k not in ignore}
+                res.update(up_data)
+            for x in res:
+                if x in key_map:
+                    res[key_map[x]] = res[x]
+                    del res[x]
+            if 'region' in res:
+                res['synapse_locations'] = Counter(res['region'])
+                del res['region']
+
+            res = {'data':{'summary': res}}
+            return res
+
 
         @inlineCallbacks
         def na_get_data(task,details=None):
@@ -817,11 +762,16 @@ class AppSession(ApplicationSession):
                     returnValue({})
                 elem = server.graph.get_element(task['id'])
                 q = QueryWrapper.from_objs(server.graph,[elem])
-                if not elem.element_type == 'Neuron':
-                    q = q.gen_traversal_in(['HasData','Neuron'],min_depth=1)
-
+                callback = get_data_sub if elem.element_type == 'Neuron' else get_syn_data_sub
+                if not (elem.element_type == 'Neuron' or elem.element_type == 'Synapse' or elem.element_type=='InferredSynapse'):
+                    qn = q.gen_traversal_in(['HasData','Neuron'],min_depth=1)
+                    if not qn:
+                        q = q.gen_traversal_in(['HasData',['Synapse', 'InferredSynapse']],min_depth=1)
+                    else:
+                        q = qn
+                        callback = get_data_sub
                 #res = yield threads.deferToThread(get_data_sub, q)
-                res = yield get_data_sub(q)
+                res = yield callback(q)
             except Exception as e:
                 print e
                 self.log.failure("Error Retrieveing Data")
@@ -831,68 +781,25 @@ class AppSession(ApplicationSession):
         uri = six.u( 'ffbo.na.get_data.%s' % str(details.session) )
         yield self.register(na_get_data, uri, RegisterOptions(details_arg='details',concurrency=1))
 
-        def get_syn_data_sub(q):
-            res = q.get_as('nx').node.values()[0]
-            ds = q.owned_by(cls='DataSource')
-            if ds.nodes:
-                res['Data Source'] = [x.name for x in ds.nodes]
-            else:
-                ds = q.get_data_qw().owned_by(cls='DataSource')
-                res['Data Source'] = [x.name for x in ds.nodes]
+        # These users can mark a tag as feautured or assign a tag to a festured list
+        approved_featured_tag_creators = []
 
-            subdata = q.get_data(cls=['NeurotransmitterData', 'GeneticData', 'MorphologyData'],as_type='nx').node
-            ignore = ['name','uname','label','class', 'x', 'y', 'z', 'r', 'parent', 'identifier', 'sample', 'morph_type']
-            key_map = {'transgenic_lines': 'Transgenic Lines'}
-            for x in subdata.values():
-                up_data = {(key_map[k] if k in key_map else k ):x[k] for k in x if k not in ignore}
-                res.update(up_data)
-            if 'region' in res:
-                res['Synapse Locations'] = Counter(res['region'])
-                del res['region']
-
-            res = {'data':{'synapse_details_1': res}}
-            return res
-
-        @inlineCallbacks
-        def na_get_syn_data(task,details=None):
+        def create_tag(task, details=None):
             if not isinstance(task, dict):
                 task = json.loads(task)
             task = byteify(task)
-
-            user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
-                      else details.caller
-            threshold = None
-
-            self.log.info("na_get_syn_data() called with task: {task}",task=task)
-            server = self.user_list.user(user_id)['server']
-            try:
-                if not is_rid(task['id']):
-                    returnValue({})
-                elem = server.graph.get_element(task['id'])
-                q = QueryWrapper.from_objs(server.graph,[elem])
-                if not elem.element_type == 'Synapse':
-                    q = q.gen_traversal_in(['HasData','Synapse'],min_depth=1)
-                if not len(q._nodes):
-                    returnValue({})
-                res = yield threads.deferToThread(get_syn_data_sub, q)
-            except Exception as e:
-                print e
-                self.log.failure("Error Retrieveing Data")
-                res = {}
-            returnValue(res)
-
-        uri = six.u( 'ffbo.na.get_syn_data.%s' % str(details.session) )
-        yield self.register(na_get_syn_data, uri, RegisterOptions(details_arg='details',concurrency=1))
-
-        def create_tag(task,details=None):
             if not "tag" in task:
-                return {"info":{"error":
-                                "Tag must be provided"}}
+                if "name" in task:
+                    task["tag"] = task["name"]
+                    del task["name"]
+                else:
+                    return {"info":{"error":
+                                    "tag/name field must be provided"}}
 
-            if not isinstance(task, dict):
-                task = json.loads(task)
-            task = byteify(task)
-
+            if ('FFBOdata' in task and
+                details.caller_authrole == 'user' and
+                details.caller_authid not in approved_featured_tag_creators):
+                del task['FFBOdata']
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
             self.log.info("create_tag() called with task: {task} ",task=task)
