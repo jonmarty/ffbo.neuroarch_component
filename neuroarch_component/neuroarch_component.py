@@ -345,7 +345,15 @@ class query_processor():
                         attrs.append("%s in %s" % (str(k), str(v)))
                 attrs = " and ".join(attrs)
                 if attrs: attrs = "where " + attrs
-                query_str = "select from %s %s" % (str(query['object']['class']),str(attrs))
+                if not isinstance(query['object']['class'], list):
+                    QueryWrapper._list_repr(isinstance(query['object']['class']))
+                for i, a in enumerate(query['object']['class']):
+                    var = '$q'+str(i)
+                    q[var] = "{var} = (select expand(rid) from (select from {cls} {attrs}))".format(var=var,
+                                                                                                    cls=str(a),
+                                                                                                    attrs=str(attrs))
+                query_str = "select from (select expand($a) let %s, $a = unionall(%s))" % \
+                    (", ".join(q.values()), ", ".join(q.keys()) )
                 query_str = QueryString(query_str,'sql')
                 query_result = QueryWrapper(self.graph, query_str)
             else:
