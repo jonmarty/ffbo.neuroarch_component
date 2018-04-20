@@ -43,7 +43,7 @@ setattr(pyorient.ogm.graph, 'orientdb_version',
 
 
 from neuroarch.models import *
-from neuroarch.query import QueryWrapper, QueryString
+from neuroarch.query import QueryWrapper, QueryString, _list_repr
 
 from autobahn.wamp import auth
 
@@ -345,13 +345,13 @@ class query_processor():
                         attrs.append("%s in %s" % (str(k), str(v)))
                 attrs = " and ".join(attrs)
                 if attrs: attrs = "where " + attrs
-                if not isinstance(query['object']['class'], list):
-                    QueryWrapper._list_repr(isinstance(query['object']['class']))
+                query['object']['class'] = _list_repr(query['object']['class'])
+                q = {}
                 for i, a in enumerate(query['object']['class']):
                     var = '$q'+str(i)
-                    q[var] = "{var} = (select expand(rid) from (select from {cls} {attrs}))".format(var=var,
-                                                                                                    cls=str(a),
-                                                                                                    attrs=str(attrs))
+                    q[var] = "{var} = (select from {cls} {attrs})".format(var=var,
+                                                                          cls=str(a),
+                                                                          attrs=str(attrs))
                 query_str = "select from (select expand($a) let %s, $a = unionall(%s))" % \
                     (", ".join(q.values()), ", ".join(q.keys()) )
                 query_str = QueryString(query_str,'sql')
