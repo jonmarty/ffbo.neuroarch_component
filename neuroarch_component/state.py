@@ -73,7 +73,7 @@ class State(object):
             restart
             undo """
         assert len(action.keys()) == 1
-        command = action.keys()[0] 
+        command = action.keys()[0]
         if command == 'restart':
             self.clear()
         elif command == 'undo':

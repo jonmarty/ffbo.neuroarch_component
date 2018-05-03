@@ -500,10 +500,12 @@ class AppSession(ApplicationSession):
             user_id = task['user'] if (details.caller_authrole == 'processor' and 'user' in task) \
                       else details.caller
 
+            if not 'format' in task: task['format'] = 'morphology'
             threshold = None
             if details.progress:
                 threshold = task['threshold'] if 'threshold' in task else 20
             if 'verb' in task and task['verb'] not in ['add','show']: threshold=None
+            if task['format'] != 'morphology': threshold=None
 
             self.log.info("na_query() called with task: {task} ,(current concurrency {current_concurrency} of max {max_concurrency})", current_concurrency=self._current_concurrency, max_concurrency=self._max_concurrency, task=task)
 
@@ -526,7 +528,7 @@ class AppSession(ApplicationSession):
                 print e
 
             try:
-                if(not 'verb' in task or task['verb'] == 'show'):
+                if(task['format'] == 'morphology' and (not 'verb' in task or task['verb'] == 'show')):
                     yield self.call(cmd_uri,
                                     {'commands': {'reset':''}})
             except Exception as e:
@@ -546,15 +548,26 @@ class AppSession(ApplicationSession):
                 yield self.call(cmd_uri, {'commands': {task['verb']: [res, args]}})
                 returnValue({'info':{'success':'Finished processing command'}})
             else:
-                if details.progress:
-                    for c in res:
-                        details.progress(c)
+                if ('data_callback_uri' in task and 'queryID' in task):
+                    if threshold:
+                        for c in res:
+                            yield self.call(six.u(task['data_callback_uri'] + '.%s' % details.caller),
+                                            {'data': c, 'queryID': task['queryID']})
+                    else:
+                        yield self.call(six.u(task['data_callback_uri'] + '.%s' % details.caller),
+                                            {'data': res, 'queryID': task['queryID']})
                     self.na_query_on_end()
                     returnValue({'info': {'success':'Finished fetching all results from database'}})
                 else:
-                    self.na_query_on_end()
-                    returnValue({'info': {'success':'Finished fetching all results from database'},
-                                 'data': res})
+                    if details.progress and threshold:
+                        for c in res:
+                            details.progress(c)
+                        self.na_query_on_end()
+                        returnValue({'info': {'success':'Finished fetching all results from database'}})
+                    else:
+                        self.na_query_on_end()
+                        returnValue({'info': {'success':'Finished fetching all results from database'},
+                                     'data': res})
         uri = six.u( 'ffbo.na.query.%s' % str(details.session) )
         yield self.register(na_query, uri, RegisterOptions(details_arg='details',concurrency=self._max_concurrency/2))
 
