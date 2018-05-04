@@ -1,5 +1,5 @@
 ###########################################
-# run using: 
+# run using:
 # docker build -t ffbo/neuroarch_component:develop .
 # docker run --name neuroarch_component -v $(dirname `pwd`):/neuroarch_component -v $(dirname $(dirname `pwd`))/neuroarch:/neuroarch -it ffbo/neuroarch_component:develop sh /neuroarch_component/neuroarch_component/run_component_docker.sh
 ###########################################
@@ -17,7 +17,7 @@ RUN echo "deb http://archive.ubuntu.com/ubuntu/ trusty main universe" >> /etc/ap
 RUN apt-get update
 
 # Install basic applications
-RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-essential 
+RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-essential
 
 # Install Python and Basic Python Tools
 RUN apt-get install -y --force-yes --force-yes python python-dev python-distribute python-pip
@@ -30,15 +30,24 @@ ENV CBREALM realm1
 RUN pip install -U pip && pip install autobahn[twisted]
 
 # Install Java
-RUN apt-get install -y --force-yes default-jre
+# RUN apt-get install -y --force-yes default-jre
+
+# Install Java 8
+RUN printf "\ndeb http://http.debian.net/debian jessie-backports main" >> /etc/apt/sources.list
+RUN apt-get update
+RUN apt-get install -y --force-yes -t jessie-backports openjdk-8-jre
+
 
 # Install OrientDB
 RUN wget https://orientdb.com/download.php?file=orientdb-community-2.2.32.tar.gz
 RUN tar -xf download.php?file=orientdb-community-2.2.32.tar.gz -C /opt
 RUN mv /opt/orientdb-community-2.2.32 /opt/orientdb
 
+# Increase memory for orientdb
+RUN export ORIENTDB_OPTS_MEMORY="-Xms4g -Xmx48g -Dstorage.diskCache.bufferSize=65536"
+
 # Install basic applications
-RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-essential 
+RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-essential
 
 
 # Install dependancies
