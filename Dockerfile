@@ -1,12 +1,6 @@
-##########################################
-# run using: 
-# docker build -t ffbo/neuroarch_component:develop .
-# docker run --name neuroarch_component -v $(dirname `pwd`):/neuroarch_component -v $(dirname $(dirname `pwd`))/neuroarch:/neuroarch -it ffbo/neuroarch_component:develop sh /neuroarch_component/neuroarch_component/run_component_docker.sh
-###########################################
+# Initialize image
 FROM python:2
-
-# File Author / Maintainer
-MAINTAINER Adam Tomkins <a.tomkins@sheffield.ac.uk>
+MAINTAINER Jonathan Marty <jonathan.n.marty@gmail.com>
 RUN apt-get update && apt-get install -y apt-transport-https
 
 ENV HOME /app
@@ -57,11 +51,12 @@ RUN apt-get clean
 RUN rm -r /var/lib/apt/lists/*
 RUN apt-get update
 
-
-#WORKDIR /opt/orientdb/databases
+# Install database
+WORKDIR /opt/orientdb/databases
 RUN wget -O ffbo_db.tar.gz https://goo.gl/d7unnS
-RUN mkdir /opt/orientdb/databases/na_server
-RUN tar zxvf ffbo_db.tar.gz --directory /opt/orientdb/databases/na_server
+RUN tar zxvf ffbo_db.tar.gz
+RUN mv ffbo_db na_server
+WORKDIR /
 
 # Package that supports binary serialization for pyorient
 RUN pip install pyorient_native
