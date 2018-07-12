@@ -1,4 +1,5 @@
 # FFBO NeuroArch Database Component
+[![Twitter Follow](https://img.shields.io/twitter/follow/flybrainobs.svg?style=social&label=Follow)](https://twitter.com/flybrainobs) ![license](https://img.shields.io/github/license/jonmarty/ffbo.neuroarch_component.svg?style=flat-square) ![GitHub last commit](https://img.shields.io/github/last-commit/jonmarty/ffbo.neuroarch_component.svg?style=flat-square) [![Docker Build Status](https://img.shields.io/docker/build/jonmarty/ffbo.neuroarch_component.svg?style=flat-square)](https://hub.docker.com/r/jonmarty/ffbo.processor)
 ## Overview
 
 This package contains the NeuroArch database component of the [FFBO architecture](http://fruitflybrain.org/). The NeuroArch database stores 3D models and neurophysiological data of neurons in the Drosophila brain. It can be attached to the [Processor](http://github.com/jonmarty/ffbo.processor) component to provide access to a local data store (default is to use FFBO's NeuroArch server).
