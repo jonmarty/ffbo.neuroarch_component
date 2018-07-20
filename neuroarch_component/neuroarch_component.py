@@ -41,7 +41,7 @@ from configparser import ConfigParser
 # Grab configuration from file
 home = os.path.expanduser("~")
 filepath = os.path.dirname(os.path.abspath(__file__))
-default_config = os.path.join(home, "config", "ffbo.nlp_component.ini")
+default_config = os.path.join(home, "config", "ffbo.neuroarch_component.ini")
 backup_config = os.path.join(filepath, "..", "config.ini")
 config = ConfigParser()
 if os.path.exists(default_config):
