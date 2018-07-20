@@ -63,6 +63,7 @@ RUN pip install pyorient_native
 RUN pip install pyOpenSSL
 RUN pip install pandas
 RUN pip install service_identity
+RUN pip install configparser
 
 # Install from forked pyorient till binary serialization support
 # is integrated in the next release
@@ -81,4 +82,4 @@ RUN git clone https://github.com/fruitflybrain/neuroarch /neuroarch
 
 WORKDIR /neuroarch_component/neuroarch_component
 
-CMD sh run_component_docker.sh ws://ffbo.processor:8081/ws --no-ssl
+CMD sh run_component_docker.sh $(sed -n -e 's/^\s*url\s*=\s*//p' ../config.ini) --no-ssl

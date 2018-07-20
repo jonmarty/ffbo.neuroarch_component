@@ -29,13 +29,37 @@ import simplejson as json
 from pyorient.ogm import Graph, Config
 import pyorient.ogm.graph
 
-from config import *
-
 import numpy as np
 
 import time
 
 from collections import Counter
+
+
+from configparser import ConfigParser
+
+# Grab configuration from file
+home = os.path.expanduser("~")
+filepath = os.path.dirname(os.path.abspath(__file__))
+default_config = os.path.join(home, "config", "ffbo.nlp_component.ini")
+backup_config = os.path.join(filepath, "..", "config.ini")
+config = ConfigParser()
+if os.path.exists(default_config):
+    config.read(default_config)
+elif os.path.exists(backup_config):
+    config.read(backup_config)
+else:
+    raise Exception("No config file exists for this component")
+
+user = config["UserInfo"]["user"]
+secret = config["UserInfo"]["secret"]
+ssl = eval(config["ServerInfo"]["ssl"])
+url = config["ServerInfo"]["url"]
+realm = config["ServerInfo"]["realm"]
+authentication = eval(config["ServerInfo"]["authentication"])
+debug = eval(config["DebugInfo"]["debug"])
+ca_cert_file = config["CertInfo"]["ca_cert_file"]
+intermediate_cert_file = config["CertInfo"]["intermediate_cert_file"]
 
 # Required to handle dill's inability to serialize namedtuple class generator:
 setattr(pyorient.ogm.graph, 'orientdb_version',
