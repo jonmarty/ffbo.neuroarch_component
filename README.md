@@ -81,7 +81,7 @@ or, in the case that you don't have this repository installed, via:
 
 Once you have configured the .ini file, you can run it with:
 
-    docker run -P -it --net ffbonet --name ffbo.neuroarch_component -v ~/.ffbo/config:~/config jonmarty/ffbo.neuroarch_component
+    docker run -P -it --net ffbonet --name ffbo.neuroarch_component -v ~/.ffbo/config:/config jonmarty/ffbo.neuroarch_component
 
 Or equivalently for other build methods. If you have configured a port, make sure to expose it by adding the '-p [INTERNAL PORT]:[EXTERNAL PORT]', where the internal port is the port you configured in the .ini file and the external port is the port on localhost that the output of the internal port is mapped to. Running without docker is the same process described above in the Manual Execution section.
 
