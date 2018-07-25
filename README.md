@@ -73,11 +73,11 @@ This will start up the database and launch the NeuroArch component.
 
 FFBO components are configured using .ini files. If you are building and running Docker images on your local computer from the Github repository (including Docker Compose), you can configure the NLP Component via the './config.ini' file in the main directory of this repository. However, if you are downloading images directly from Docker Hub, you will need to create a '.ffbolab' folder in your computer's home directory. Into this directory, place a .ini config file referring to this component. This can be done in one of two ways. Either copy the default config file from the main directory of this repository via:
 
-    cp config.ini ~/.ffbolab/config/ffbo.neuroarch_component.ini
+    cp config.ini ~/.ffbo/config/ffbo.neuroarch_component.ini
 
 or, in the case that you don't have this repository installed, via:
 
-    wget -o ~/.ffbolab/config/ffbo.neuroarch_component.ini https://cdn.rawgit.com/jonmarty/ffbo.neuroarch_component/master/config.ini
+    wget -o ~/.ffbo/config/ffbo.neuroarch_component.ini https://cdn.rawgit.com/jonmarty/ffbo.neuroarch_component/master/config.ini
 
 Once you have configured the .ini file, you can run it with:
 
