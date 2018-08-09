@@ -42,6 +42,28 @@ from configparser import ConfigParser
 root = os.path.expanduser("/")
 home = os.path.expanduser("~")
 filepath = os.path.dirname(os.path.abspath(__file__))
+config_files = []
+config_files.append(os.path.join(home, "config", "ffbo.neuroarch_component.ini"))
+config_files.append(os.path.join(root, "config", "ffbo.neuroarch_component.ini"))
+config_files.append(os.path.join(home, "config", "config.ini"))
+config_files.append(os.path.join(root, "config", "config.ini"))
+config_files.append(os.path.join(filepath, "config.ini"))
+config = ConfigParser()
+configured = False
+for config_file in config_files:
+    if os.path.exists(config_file):
+        config.read(config_file)
+        configured = True
+        break
+if not configured:
+    raise Exception("No config file exists for this component")
+
+
+# Grab configuration from file
+"""
+root = os.path.expanduser("/")
+home = os.path.expanduser("~")
+filepath = os.path.dirname(os.path.abspath(__file__))
 default_config = os.path.join(home, "config", "ffbo.neuroarch_component.ini")
 backup_config1 = os.path.join(root, "config", "ffbo.neuroarch_component.ini")
 backup_config2 = os.path.join(filepath, "..", "config.ini")
@@ -54,6 +76,7 @@ elif os.path.exists(backup_config2):
     config.read(backup_config2)
 else:
     raise Exception("No config file exists for this component")
+"""
 
 user = config["UserInfo"]["user"]
 secret = config["UserInfo"]["secret"]
