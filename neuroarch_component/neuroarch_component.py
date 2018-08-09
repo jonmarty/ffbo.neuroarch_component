@@ -58,26 +58,6 @@ for config_file in config_files:
 if not configured:
     raise Exception("No config file exists for this component")
 
-
-# Grab configuration from file
-"""
-root = os.path.expanduser("/")
-home = os.path.expanduser("~")
-filepath = os.path.dirname(os.path.abspath(__file__))
-default_config = os.path.join(home, "config", "ffbo.neuroarch_component.ini")
-backup_config1 = os.path.join(root, "config", "ffbo.neuroarch_component.ini")
-backup_config2 = os.path.join(filepath, "..", "config.ini")
-config = ConfigParser()
-if os.path.exists(default_config):
-    config.read(default_config)
-elif os.path.exists(backup_config1):
-    config.read(backup_config1)
-elif os.path.exists(backup_config2):
-    config.read(backup_config2)
-else:
-    raise Exception("No config file exists for this component")
-"""
-
 user = config["UserInfo"]["user"]
 secret = config["UserInfo"]["secret"]
 ssl = eval(config["ServerInfo"]["ssl"])
