@@ -37,6 +37,7 @@ RUN apt-get install -y --force-yes tar git curl vim wget dialog net-tools build-
 
 # Install dependancies
 RUN pip install --upgrade pip
+RUN pip install numpy==1.14.5
 RUN pip install cython
 RUN pip install simplejson
 
