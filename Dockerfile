@@ -83,4 +83,4 @@ RUN git clone https://github.com/fruitflybrain/neuroarch /neuroarch
 
 WORKDIR /neuroarch_component/neuroarch_component
 
-CMD sh run_component_docker.sh $(sed -n -e 's/^\s*url\s*=\s*//p' ../config.ini) --no-ssl
+CMD sh run_component_docker.sh

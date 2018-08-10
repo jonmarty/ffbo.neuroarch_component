@@ -47,7 +47,7 @@ config_files.append(os.path.join(home, "config", "ffbo.neuroarch_component.ini")
 config_files.append(os.path.join(root, "config", "ffbo.neuroarch_component.ini"))
 config_files.append(os.path.join(home, "config", "config.ini"))
 config_files.append(os.path.join(root, "config", "config.ini"))
-config_files.append(os.path.join(filepath, "config.ini"))
+config_files.append(os.path.join(filepath, "..", "config.ini"))
 config = ConfigParser()
 configured = False
 for config_file in config_files:
@@ -58,15 +58,18 @@ for config_file in config_files:
 if not configured:
     raise Exception("No config file exists for this component")
 
-user = config["UserInfo"]["user"]
-secret = config["UserInfo"]["secret"]
-ssl = eval(config["ServerInfo"]["ssl"])
-url = config["ServerInfo"]["url"]
-realm = config["ServerInfo"]["realm"]
-authentication = eval(config["ServerInfo"]["authentication"])
-debug = eval(config["DebugInfo"]["debug"])
-ca_cert_file = config["CertInfo"]["ca_cert_file"]
-intermediate_cert_file = config["CertInfo"]["intermediate_cert_file"]
+user = config["USER"]["user"]
+secret = config["USER"]["secret"]
+ssl = eval(config["AUTH"]["ssl"])
+websockets = "wss" if ssl else "ws"
+ip = config["SERVER"]["ip"]
+port = config["NLP"]["port"]
+url =  "%(ws)s://%(ip)s:%(port)s/ws" % {"ws":websockets, "ip":ip, "port":port}
+realm = config["SERVER"]["realm"]
+authentication = eval(config["AUTH"]["authentication"])
+debug = eval(config["DEBUG"]["debug"])
+ca_cert_file = config["AUTH"]["ca_cert_file"]
+intermediate_cert_file = config["AUTH"]["intermediate_cert_file"]
 
 # Required to handle dill's inability to serialize namedtuple class generator:
 setattr(pyorient.ogm.graph, 'orientdb_version',
@@ -967,15 +970,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--debug', action='store_true', help='Enable debug output.')
     parser.add_argument('--url', dest='url', type=six.text_type, default=url,
-                        help='The router URL (defaults to value from config.py)')
+                        help='The router URL (defaults to value from config.ini)')
     parser.add_argument('--realm', dest='realm', type=six.text_type, default=realm,
-                        help='The realm to join (defaults to value from config.py).')
+                        help='The realm to join (defaults to value from config.ini).')
     parser.add_argument('--ca_cert', dest='ca_cert_file', type=six.text_type,
                         default=ca_cert_file,
-                        help='Root CA PEM certificate file (defaults to value from config.py).')
+                        help='Root CA PEM certificate file (defaults to value from config.ini).')
     parser.add_argument('--int_cert', dest='intermediate_cert_file', type=six.text_type,
                         default=intermediate_cert_file,
-                        help='Intermediate PEM certificate file (defaults to value from config.py).')
+                        help='Intermediate PEM certificate file (defaults to value from config.ini).')
     parser.add_argument('--no-ssl', dest='ssl', action='store_false')
     parser.set_defaults(ssl=ssl)
     parser.set_defaults(debug=debug)
