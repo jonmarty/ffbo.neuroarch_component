@@ -56,7 +56,6 @@ RUN apt-get update
 WORKDIR /opt/orientdb/databases
 RUN wget -O ffbo_db.tar.gz https://www.dropbox.com/s/mjcs38m2we4uulr/ffbo_db_public.tar.gz?dl=0
 RUN tar zxvf ffbo_db.tar.gz
-RUN mv ffbo_db na_server
 WORKDIR /
 
 # Package that supports binary serialization for pyorient
