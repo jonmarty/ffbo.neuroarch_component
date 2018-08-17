@@ -1,8 +1,8 @@
 # FFBO NeuroArch Database Component
-[![Twitter Follow](https://img.shields.io/twitter/follow/flybrainobs.svg?style=social&label=Follow)](https://twitter.com/flybrainobs) ![license](https://img.shields.io/github/license/jonmarty/ffbo.neuroarch_component.svg?style=flat-square) ![GitHub last commit](https://img.shields.io/github/last-commit/jonmarty/ffbo.neuroarch_component.svg?style=flat-square) [![Docker Build Status](https://img.shields.io/docker/build/jonmarty/ffbo.neuroarch_component.svg?style=flat-square)](https://hub.docker.com/r/jonmarty/ffbo.neuroarch_component)
+[![Twitter Follow](https://img.shields.io/twitter/follow/flybrainobs.svg?style=social&label=Follow)](https://twitter.com/flybrainobs) ![license](https://img.shields.io/github/license/fruitflybrain/ffbo.neuroarch_component.svg?style=flat-square) ![GitHub last commit](https://img.shields.io/github/last-commit/fruitflybrain/ffbo.neuroarch_component.svg?style=flat-square) [![Docker Build Status](https://img.shields.io/docker/build/fruitflybrain/ffbo.neuroarch_component.svg?style=flat-square)](https://hub.docker.com/r/fruitflybrain/ffbo.neuroarch_component)
 ## Overview
 
-This package contains the NeuroArch database component of the [FFBO architecture](http://fruitflybrain.org/). The NeuroArch database stores 3D models and neurophysiological data of neurons in the Drosophila brain. It can be attached to the [Processor](http://github.com/jonmarty/ffbo.processor) component to provide access to a local data store (default is to use FFBO's NeuroArch server).
+This package contains the NeuroArch database component of the [FFBO architecture](http://fruitflybrain.org/). The NeuroArch database stores 3D models and neurophysiological data of neurons in the Drosophila brain. It can be attached to the [Processor](http://github.com/fruitflybrain/ffbo.processor) component to provide access to a local data store (default is to use FFBO's NeuroArch server).
 
 ## Plans
 
@@ -26,20 +26,20 @@ Please note that the 'bridge' driver provides a network that is limited to the h
 
 ### Docker Hub
 
-Installing via the [Docker Hub](https://hub.docker.com/r/jonmarty/ffbo.neuroarch_component) repository is recommended for non-developers. The image is installed directly onto your local Docker daemon, from which you can run it in a container. Installation is as follows:
+Installing via the [Docker Hub](https://hub.docker.com/r/fruitflybrain/ffbo.neuroarch_component) repository is recommended for non-developers. The image is installed directly onto your local Docker daemon, from which you can run it in a container. Installation is as follows:
 
-    docker pull jonmarty/ffbo.neuroarch_component
+    docker pull fruitflybrain/ffbo.neuroarch_component
 
 Once the image is installed, you can run it in a container:
 
-    docker run -P -t --net ffbonet --name ffbo.neuroarch_component jonmarty/ffbo.neuroarch_component
+    docker run -P -t --net ffbonet --name ffbo.neuroarch_component fruitflybrain/ffbo.neuroarch_component
 
 
 ### Github with Docker Compose
 
-Installing via the [Github](https://github.com/jonmarty/ffbo.neuroarch_component) repository is recommended for developers.The code is downloaded as follows:
+Installing via the [Github](https://github.com/fruitflybrain/ffbo.neuroarch_component) repository is recommended for developers.The code is downloaded as follows:
 
-    git clone https://github.com/jonmarty/ffbo.neuroarch_component
+    git clone https://github.com/fruitflybrain/ffbo.neuroarch_component
 
 Building and running the repository is simplified with Docker Compose, which stores the configuration for a service (such as network and name for the container and the Dockerfile to build from) in a docker-compose.yml file, simplifying the command-line call. Building and running the Docker image can be accomplished with:
 
