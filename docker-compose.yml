@@ -6,7 +6,7 @@ services:
         build:
             context: .
             dockerfile: ./Dockerfile
-        image: ffbo/neuroarch_component:develop
+        image: ffbo/ffbo.neuroarch_component
         networks:
             - ffbonet
 networks:
